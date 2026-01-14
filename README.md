@@ -56,31 +56,32 @@ When `ruby-version` is set to `default` (the default), setup-ruby-flash reads fr
 
 ## Inputs
 
-| Input | Description | Default |
-|-------|-------------|---------|
-| `ruby-version` | Ruby version to install (e.g., `3.4`, `3.4.1`). Use `ruby` for latest stable version, or `default` to read from version files. | `default` |
-| `rubygems` | RubyGems version: `default`, `latest`, or a version number (e.g., `3.5.0`) | `default` |
-| `bundler` | Bundler version: `Gemfile.lock`, `default`, `latest`, `none`, or a version number | `Gemfile.lock` |
-| `ore-install` | Run `ore install` and cache gems | `false` |
-| `working-directory` | Directory for version files and Gemfile | `.` |
-| `cache-version` | Cache version string for invalidation | `v1` |
-| `rv-version` | Version of rv to install | `latest` |
-| `ore-version` | Version of ore to install | `latest` |
-| `skip-extensions` | Skip building native extensions | `false` |
-| `without-groups` | Gem groups to exclude (comma-separated) | `''` |
-| `token` | GitHub token for API calls | `${{ github.token }}` |
+| Input                  | Description                                                                                                                    | Default               |
+|------------------------|--------------------------------------------------------------------------------------------------------------------------------|-----------------------|
+| `ruby-version`         | Ruby version to install (e.g., `3.4`, `3.4.1`). Use `ruby` for latest stable version, or `default` to read from version files. | `default`             |
+| `rubygems`             | RubyGems version: `default`, `latest`, or a version number (e.g., `3.5.0`)                                                     | `default`             |
+| `bundler`              | Bundler version: `Gemfile.lock`, `default`, `latest`, `none`, or a version number                                              | `Gemfile.lock`        |
+| `ore-install`          | Run `ore install` and cache gems                                                                                               | `false`               |
+| `working-directory`    | Directory for version files and Gemfile                                                                                        | `.`                   |
+| `cache-version`        | Cache version string for invalidation                                                                                          | `v1`                  |
+| `rv-version`           | Version of rv to install                                                                                                       | `latest`              |
+| `ore-version`          | Version of ore to install                                                                                                      | `latest`              |
+| `skip-extensions`      | Skip building native extensions                                                                                                | `false`               |
+| `without-groups`       | Gem groups to exclude (comma-separated)                                                                                        | `''`                  |
+| `ruby-install-retries` | Number of retry attempts for Ruby installation (with exponential backoff)                                                      | `3`                   |
+| `token`                | GitHub token for API calls                                                                                                     | `${{ github.token }}` |
 
 ## Outputs
 
-| Output | Description |
-|--------|-------------|
-| `ruby-version` | The installed Ruby version |
-| `ruby-prefix` | The path to the Ruby installation |
-| `rv-version` | The installed rv version |
-| `rubygems-version` | The installed RubyGems version |
-| `bundler-version` | The installed Bundler version |
-| `ore-version` | The installed ore version |
-| `cache-hit` | Whether gems were restored from cache |
+| Output             | Description                           |
+|--------------------|---------------------------------------|
+| `ruby-version`     | The installed Ruby version            |
+| `ruby-prefix`      | The path to the Ruby installation     |
+| `rv-version`       | The installed rv version              |
+| `rubygems-version` | The installed RubyGems version        |
+| `bundler-version`  | The installed Bundler version         |
+| `ore-version`      | The installed ore version             |
+| `cache-hit`        | Whether gems were restored from cache |
 
 ## Examples
 
@@ -169,6 +170,17 @@ jobs:
     ore-install: true
 ```
 
+### Custom Retry Configuration
+
+If you experience intermittent failures due to GitHub API rate limiting, you can adjust the number of retry attempts:
+
+```yaml
+- uses: appraisal-rb/setup-ruby-flash@v1
+  with:
+    ruby-version: '3.4'
+    ruby-install-retries: '5'
+```
+
 ## Migration from setup-ruby
 
 setup-ruby-flash is designed to be a near drop-in replacement for `ruby/setup-ruby` on supported platforms:
@@ -209,7 +221,7 @@ setup-ruby-flash is designed to be a near drop-in replacement for `ruby/setup-ru
 
 ### Key Differences
 
-| Feature              | setup-ruby      | setup-ruby-flash          |
+| Feature              | setup-ruby      | setup-ruby-flash  |
 |----------------------|-----------------|-------------------|
 | Ruby Install         | ~5 seconds      | < 2 seconds       |
 | Gem Install          | Bundler         | ore (~50% faster) |

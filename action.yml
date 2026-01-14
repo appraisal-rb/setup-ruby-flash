@@ -79,6 +79,13 @@ inputs:
     required: false
     default: ''
 
+  ruby-install-retries:
+    description: |
+      Number of retry attempts for Ruby installation if it fails (e.g., due to GitHub API rate limiting).
+      Uses exponential backoff between retries.
+    required: false
+    default: '3'
+
   token:
     description: |
       GitHub token for API calls and downloading releases.
@@ -243,9 +250,69 @@ runs:
     - name: Install Ruby
       if: steps.cache-ruby.outputs.cache-hit != 'true'
       shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.token }}
       run: |
-        echo "Installing Ruby ${{ steps.detect-ruby.outputs.version }} via rv..."
-        ~/.local/bin/rv ruby install ${{ steps.detect-ruby.outputs.version }}
+        RUBY_VERSION="${{ steps.detect-ruby.outputs.version }}"
+        MAX_RETRIES=${{ inputs.ruby-install-retries }}
+        RETRY_COUNT=0
+        BACKOFF=5
+
+        # Pre-seed rv's releases cache with authenticated API call to avoid rate limiting
+        RV_CACHE_DIR="${HOME}/.cache/rv/ruby-v0/releases"
+        mkdir -p "$RV_CACHE_DIR"
+        CACHE_FILE="$RV_CACHE_DIR/available_rubies.json"
+        
+        echo "Fetching Ruby releases list with authenticated API call..."
+        RESPONSE=$(curl -fsSL \
+          -H "Authorization: Bearer $GITHUB_TOKEN" \
+          -H "Accept: application/vnd.github+json" \
+          -H "User-Agent: rv-cli" \
+          -D /tmp/headers.txt \
+          "https://api.github.com/repos/spinel-coop/rv-ruby/releases/latest" 2>/dev/null) || true
+        
+        if [ -n "$RESPONSE" ]; then
+          # Extract ETag from headers
+          ETAG=$(grep -i '^etag:' /tmp/headers.txt | tr -d '\r' | sed 's/^[eE][tT][aA][gG]: *//' || echo "")
+          
+          # Calculate expires_at as Unix timestamp + 3600 seconds (1 hour)
+          # serde serializes SystemTime as {"secs_since_epoch": N, "nanos_since_epoch": N}
+          EXPIRES_SECS=$(($(date +%s) + 3600))
+          
+          # Format ETag as JSON string or null
+          if [ -n "$ETAG" ]; then
+            ETAG_JSON="\"$ETAG\""
+          else
+            ETAG_JSON="null"
+          fi
+          
+          # Create the cached release JSON in rv's expected format
+          echo "{\"expires_at\":{\"secs_since_epoch\":${EXPIRES_SECS},\"nanos_since_epoch\":0},\"etag\":${ETAG_JSON},\"release\":${RESPONSE}}" > "$CACHE_FILE"
+          echo "Pre-seeded rv releases cache at $CACHE_FILE"
+        else
+          echo "::warning::Could not pre-fetch releases list, rv will fetch directly"
+        fi
+
+        echo "Installing Ruby $RUBY_VERSION via rv (max retries: $MAX_RETRIES)..."
+
+        while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+          RETRY_COUNT=$((RETRY_COUNT + 1))
+          echo "Attempt $RETRY_COUNT of $MAX_RETRIES..."
+          
+          if ~/.local/bin/rv ruby install "$RUBY_VERSION"; then
+            echo "Ruby $RUBY_VERSION installed successfully on attempt $RETRY_COUNT"
+            exit 0
+          fi
+
+          if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+            echo "::warning::rv ruby install failed (attempt $RETRY_COUNT/$MAX_RETRIES). Retrying in ${BACKOFF}s..."
+            sleep $BACKOFF
+            BACKOFF=$((BACKOFF * 2))
+          fi
+        done
+
+        echo "::error::Failed to install Ruby $RUBY_VERSION after $MAX_RETRIES attempts"
+        exit 1
 
     - name: Configure Ruby environment
       id: setup
