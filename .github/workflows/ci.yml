@@ -19,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Run setup-rv action
+      - name: Run setup-ruby-flash action
         uses: ./
         with:
           ruby-version: ${{ matrix.ruby }}
@@ -54,7 +54,7 @@ jobs:
           gem 'rake'
           EOF
 
-      - name: Run setup-rv with ore
+      - name: Run setup-ruby-flash with ore
         uses: ./
         with:
           ruby-version: '3.4'
@@ -81,7 +81,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Run setup-rv action
+      - name: Run setup-ruby-flash action
         uses: ./
         with:
           ruby-version: ${{ matrix.ruby }}
@@ -100,7 +100,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Run setup-rv action
+      - name: Run setup-ruby-flash action
         uses: ./
         with:
           ruby-version: '3.4'

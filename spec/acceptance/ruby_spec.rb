@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-# These tests verify that the setup-rv GitHub Action worked correctly.
+# These tests verify that the setup-ruby-flash GitHub Action worked correctly.
 # They run AFTER the action has installed Ruby, rv, and ore.
 # If Ruby isn't installed, these tests can't even run!
 RSpec.describe 'Ruby Installation', :acceptance do

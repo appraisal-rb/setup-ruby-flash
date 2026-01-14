@@ -127,7 +127,7 @@ runs:
           Linux)   OS="linux" ;;
           macOS)   OS="darwin" ;;
           *)
-            echo "::error::Unsupported OS: $RUNNER_OS. setup-rv only supports Linux and macOS."
+            echo "::error::Unsupported OS: $RUNNER_OS. setup-ruby-flash only supports Linux and macOS."
             exit 1
             ;;
         esac
@@ -139,7 +139,7 @@ runs:
           aarch64) ARCH="arm64" ;;
           arm64)   ARCH="arm64" ;;
           *)
-            echo "::error::Unsupported architecture: $ARCH. setup-rv only supports x86_64 and arm64."
+            echo "::error::Unsupported architecture: $ARCH. setup-ruby-flash only supports x86_64 and arm64."
             exit 1
             ;;
         esac
@@ -169,7 +169,7 @@ runs:
       uses: actions/cache@v4
       with:
         path: ~/.local/bin/rv
-        key: setup-rv-rv-${{ steps.platform.outputs.platform }}-${{ steps.rv-version.outputs.version }}
+        key: setup-ruby-flash-rv-${{ steps.platform.outputs.platform }}-${{ steps.rv-version.outputs.version }}
 
     - name: Install rv
       if: steps.cache-rv.outputs.cache-hit != 'true'
@@ -238,7 +238,7 @@ runs:
       uses: actions/cache@v4
       with:
         path: ~/.local/share/rv/rubies
-        key: setup-rv-ruby-${{ inputs.cache-version }}-${{ steps.platform.outputs.platform }}-${{ steps.detect-ruby.outputs.version }}
+        key: setup-ruby-flash-ruby-${{ inputs.cache-version }}-${{ steps.platform.outputs.platform }}-${{ steps.detect-ruby.outputs.version }}
 
     - name: Install Ruby
       if: steps.cache-ruby.outputs.cache-hit != 'true'
@@ -437,7 +437,7 @@ runs:
           BUNDLER_VERSION=$(bundle --version 2>/dev/null | awk '{print $NF}' || echo "default")
         fi
         
-        echo "### setup-rv Summary ⚡" >> $GITHUB_STEP_SUMMARY
+        echo "### setup-ruby-flash Summary ⚡" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "| Component | Value |" >> $GITHUB_STEP_SUMMARY
         echo "|-----------|-------|" >> $GITHUB_STEP_SUMMARY
@@ -470,7 +470,7 @@ runs:
       uses: actions/cache@v4
       with:
         path: ~/.local/bin/ore
-        key: setup-rv-ore-${{ steps.platform.outputs.platform }}-${{ steps.ore-version.outputs.version }}
+        key: setup-ruby-flash-ore-${{ steps.platform.outputs.platform }}-${{ steps.ore-version.outputs.version }}
 
     - name: Install ore
       if: inputs.ore-install == 'true' && steps.cache-ore.outputs.cache-hit != 'true'
@@ -500,11 +500,11 @@ runs:
 
         # Use full Ruby version to prevent ABI mismatch with native extensions
         FULL_RUBY="${{ steps.setup.outputs.ruby-full-version }}"
-        CACHE_KEY="setup-rv-gems-${{ inputs.cache-version }}-${{ steps.platform.outputs.platform }}-ruby-${FULL_RUBY}-${LOCKFILE_HASH}"
+        CACHE_KEY="setup-ruby-flash-gems-${{ inputs.cache-version }}-${{ steps.platform.outputs.platform }}-ruby-${FULL_RUBY}-${LOCKFILE_HASH}"
         echo "key=$CACHE_KEY" >> $GITHUB_OUTPUT
 
         # Only restore from caches with the same full Ruby version to prevent ABI mismatches
-        echo "restore-keys=setup-rv-gems-${{ inputs.cache-version }}-${{ steps.platform.outputs.platform }}-ruby-${FULL_RUBY}-" >> $GITHUB_OUTPUT
+        echo "restore-keys=setup-ruby-flash-gems-${{ inputs.cache-version }}-${{ steps.platform.outputs.platform }}-ruby-${FULL_RUBY}-" >> $GITHUB_OUTPUT
 
     - name: Cache gems
       if: inputs.ore-install == 'true'
@@ -565,7 +565,7 @@ runs:
         fi
 
         # Summary
-        echo "### setup-rv Summary ⚡" >> $GITHUB_STEP_SUMMARY
+        echo "### setup-ruby-flash Summary ⚡" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "| Component | Value |" >> $GITHUB_STEP_SUMMARY
         echo "|-----------|-------|" >> $GITHUB_STEP_SUMMARY

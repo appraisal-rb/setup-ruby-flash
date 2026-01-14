@@ -1,6 +1,6 @@
-# setup-rv
+# setup-ruby-flash
 
-[![CI](https://github.com/appraisal-rb/setup-rv/actions/workflows/ci.yml/badge.svg)](https://github.com/appraisal-rb/setup-rv/actions/workflows/ci.yml)
+[![CI](https://github.com/appraisal-rb/setup-ruby-flash/actions/workflows/ci.yml/badge.svg)](https://github.com/appraisal-rb/setup-ruby-flash/actions/workflows/ci.yml)
 
 A GitHub Action for fast Ruby environment setup using [rv](https://github.com/spinel-coop/rv) for Ruby installation and [ore](https://github.com/contriboss/ore-light) for gem management.
 
@@ -27,7 +27,7 @@ A GitHub Action for fast Ruby environment setup using [rv](https://github.com/sp
 ### Basic Usage
 
 ```yaml
-- uses: appraisal-rb/setup-rv@v1
+- uses: appraisal-rb/setup-ruby-flash@v1
   with:
     ruby-version: '3.4'
 ```
@@ -35,7 +35,7 @@ A GitHub Action for fast Ruby environment setup using [rv](https://github.com/sp
 ### With Gem Installation
 
 ```yaml
-- uses: appraisal-rb/setup-rv@v1
+- uses: appraisal-rb/setup-ruby-flash@v1
   with:
     ruby-version: '3.4'
     ore-install: true
@@ -43,13 +43,13 @@ A GitHub Action for fast Ruby environment setup using [rv](https://github.com/sp
 
 ### Using Version Files
 
-When `ruby-version` is set to `default` (the default), setup-rv reads from:
+When `ruby-version` is set to `default` (the default), setup-ruby-flash reads from:
 - `.ruby-version`
 - `.tool-versions` (asdf format)
 - `mise.toml`
 
 ```yaml
-- uses: appraisal-rb/setup-rv@v1
+- uses: appraisal-rb/setup-ruby-flash@v1
   with:
     ore-install: true
 ```
@@ -100,7 +100,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
-      - uses: appraisal-rb/setup-rv@v1
+      - uses: appraisal-rb/setup-ruby-flash@v1
         with:
           ruby-version: ${{ matrix.ruby }}
           ore-install: true
@@ -110,7 +110,7 @@ jobs:
 ### Production Gems Only
 
 ```yaml
-- uses: appraisal-rb/setup-rv@v1
+- uses: appraisal-rb/setup-ruby-flash@v1
   with:
     ruby-version: '3.4'
     ore-install: true
@@ -120,7 +120,7 @@ jobs:
 ### Latest Ruby with Latest RubyGems and Bundler
 
 ```yaml
-- uses: appraisal-rb/setup-rv@v1
+- uses: appraisal-rb/setup-ruby-flash@v1
   with:
     ruby-version: ruby
     rubygems: latest
@@ -131,7 +131,7 @@ jobs:
 ### Specific RubyGems Version
 
 ```yaml
-- uses: appraisal-rb/setup-rv@v1
+- uses: appraisal-rb/setup-ruby-flash@v1
   with:
     ruby-version: '3.4'
     rubygems: '3.5.0'
@@ -141,7 +141,7 @@ jobs:
 ### Skip Native Extensions
 
 ```yaml
-- uses: appraisal-rb/setup-rv@v1
+- uses: appraisal-rb/setup-ruby-flash@v1
   with:
     ruby-version: '3.4'
     ore-install: true
@@ -151,7 +151,7 @@ jobs:
 ### Custom Working Directory
 
 ```yaml
-- uses: appraisal-rb/setup-rv@v1
+- uses: appraisal-rb/setup-ruby-flash@v1
   with:
     ruby-version: '3.4'
     ore-install: true
@@ -161,7 +161,7 @@ jobs:
 ### Specific Tool Versions
 
 ```yaml
-- uses: appraisal-rb/setup-rv@v1
+- uses: appraisal-rb/setup-ruby-flash@v1
   with:
     ruby-version: '3.4.1'
     rv-version: '0.4.0'
@@ -171,7 +171,7 @@ jobs:
 
 ## Migration from setup-ruby
 
-setup-rv is designed to be a near drop-in replacement for `ruby/setup-ruby` on supported platforms:
+setup-ruby-flash is designed to be a near drop-in replacement for `ruby/setup-ruby` on supported platforms:
 
 ```yaml
 # Before (setup-ruby)
@@ -181,8 +181,8 @@ setup-rv is designed to be a near drop-in replacement for `ruby/setup-ruby` on s
     bundler-cache: true
 - run: bundle exec rake test
 
-# After (setup-rv)
-- uses: appraisal-rb/setup-rv@v1
+# After (setup-ruby-flash)
+- uses: appraisal-rb/setup-ruby-flash@v1
   with:
     ruby-version: '3.4'
     ore-install: true
@@ -199,8 +199,8 @@ setup-rv is designed to be a near drop-in replacement for `ruby/setup-ruby` on s
     rubygems: latest
     bundler: latest
 
-# After (setup-rv)
-- uses: appraisal-rb/setup-rv@v1
+# After (setup-ruby-flash)
+- uses: appraisal-rb/setup-ruby-flash@v1
   with:
     ruby-version: ruby
     rubygems: latest
@@ -209,7 +209,7 @@ setup-rv is designed to be a near drop-in replacement for `ruby/setup-ruby` on s
 
 ### Key Differences
 
-| Feature              | setup-ruby      | setup-rv          |
+| Feature              | setup-ruby      | setup-ruby-flash          |
 |----------------------|-----------------|-------------------|
 | Ruby Install         | ~5 seconds      | < 2 seconds       |
 | Gem Install          | Bundler         | ore (~50% faster) |
@@ -250,7 +250,7 @@ rake ci
 
 ## Contributing
 
-Bug reports and pull requests are welcome on GitHub at https://github.com/appraisal-rb/setup-rv.
+Bug reports and pull requests are welcome on GitHub at https://github.com/appraisal-rb/setup-ruby-flash.
 
 ## License
 
