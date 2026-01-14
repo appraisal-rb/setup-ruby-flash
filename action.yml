@@ -10,9 +10,29 @@ inputs:
   ruby-version:
     description: |
       Ruby version to install. Reads from .ruby-version, .tool-versions, or mise.toml if set to 'default'.
+      Use 'ruby' for latest stable MRI Ruby version.
       Supported versions: 3.2, 3.3, 3.4, 4.0
     required: false
     default: 'default'
+
+  rubygems:
+    description: |
+      The version of RubyGems to use. Either 'default' (the default), 'latest', or a version number (e.g., 3.3.5).
+      For 'default', no action is taken and the version of RubyGems that comes with Ruby by default is used.
+      For 'latest', `gem update --system` is run to update to the latest compatible RubyGems version.
+      If a version number is given, `gem update --system <version>` is run to update to that version.
+    required: false
+    default: 'default'
+
+  bundler:
+    description: |
+      The version of Bundler to install. Either 'Gemfile.lock' (the default), 'default', 'latest', 'none', or a version number.
+      For 'Gemfile.lock', the version of the BUNDLED WITH section from the Gemfile.lock if it exists.
+      For 'default', uses the Bundler version shipped with Ruby if it's 2.2+, otherwise installs 'latest'.
+      For 'latest', installs the latest compatible Bundler version (Bundler 2 on Ruby 3.2+).
+      For 'none', nothing is done.
+    required: false
+    default: 'Gemfile.lock'
 
   ore-install:
     description: |
@@ -78,6 +98,14 @@ outputs:
   rv-version:
     description: 'The installed rv version'
     value: ${{ steps.setup.outputs.rv-version }}
+
+  rubygems-version:
+    description: 'The installed RubyGems version'
+    value: ${{ steps.configure-rubygems.outputs.version || steps.setup.outputs.gem-version }}
+
+  bundler-version:
+    description: 'The installed Bundler version'
+    value: ${{ steps.install-bundler.outputs.version || 'default' }}
 
   ore-version:
     description: 'The installed ore version (if ore-install is true)'
@@ -181,7 +209,11 @@ runs:
       run: |
         RUBY_VERSION="${{ inputs.ruby-version }}"
 
-        if [ "$RUBY_VERSION" = "default" ]; then
+        # 'ruby' means latest stable Ruby version (like setup-ruby)
+        if [ "$RUBY_VERSION" = "ruby" ]; then
+          RUBY_VERSION="3.4"
+          echo "Using latest stable Ruby version: $RUBY_VERSION"
+        elif [ "$RUBY_VERSION" = "default" ]; then
           # Check version files in order of precedence
           if [ -f ".ruby-version" ]; then
             RUBY_VERSION=$(cat .ruby-version | head -1 | sed 's/^ruby-//' | tr -d '[:space:]')
@@ -241,26 +273,177 @@ runs:
         # Get the actual full Ruby version for cache key accuracy
         export PATH="$RUBY_BIN_DIR:$PATH"
         FULL_RUBY_VERSION=$(ruby -e 'print RUBY_VERSION')
+        GEM_VERSION=$(gem --version)
         
         # Set outputs
         echo "ruby-version=$RUBY_VERSION" >> $GITHUB_OUTPUT
         echo "ruby-full-version=$FULL_RUBY_VERSION" >> $GITHUB_OUTPUT
         echo "ruby-prefix=$RUBY_PREFIX" >> $GITHUB_OUTPUT
         echo "rv-version=${{ steps.rv-version.outputs.version }}" >> $GITHUB_OUTPUT
+        echo "gem-version=$GEM_VERSION" >> $GITHUB_OUTPUT
 
         # Verify Ruby installation
         ruby --version
         gem --version
 
+    - name: Configure RubyGems
+      id: configure-rubygems
+      if: inputs.rubygems != 'default'
+      shell: bash
+      run: |
+        RUBYGEMS_INPUT="${{ inputs.rubygems }}"
+        CURRENT_VERSION=$(gem --version)
+        echo "Current RubyGems version: $CURRENT_VERSION"
+
+        if [ "$RUBYGEMS_INPUT" = "latest" ]; then
+          echo "Updating RubyGems to latest version..."
+          gem update --system
+          NEW_VERSION=$(gem --version)
+          echo "Updated RubyGems to: $NEW_VERSION"
+          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+        elif [ -n "$RUBYGEMS_INPUT" ]; then
+          # Check if requested version is newer than current
+          if ruby -e "exit(Gem::Version.new('$RUBYGEMS_INPUT') > Gem::Version.new('$CURRENT_VERSION') ? 0 : 1)" 2>/dev/null; then
+            echo "Updating RubyGems to version $RUBYGEMS_INPUT..."
+            gem update --system "$RUBYGEMS_INPUT"
+            echo "version=$RUBYGEMS_INPUT" >> $GITHUB_OUTPUT
+          else
+            echo "Requested RubyGems version ($RUBYGEMS_INPUT) is not newer than current ($CURRENT_VERSION), skipping update"
+            echo "version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          fi
+        fi
+
+    - name: Install Bundler
+      id: install-bundler
+      if: inputs.bundler != 'none'
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        BUNDLER_INPUT="${{ inputs.bundler }}"
+        RUBY_VERSION="${{ steps.setup.outputs.ruby-full-version }}"
+        
+        # Helper function to check if a specific bundler version is installed
+        is_bundler_installed() {
+          local version="$1"
+          gem list bundler --installed --version "$version" >/dev/null 2>&1
+        }
+        
+        # Helper function to check if bundler satisfies a version requirement
+        bundler_satisfies() {
+          local required="$1"
+          local current="$2"
+          # If we just need major version match (e.g., "2" or "4"), check major only
+          if [[ "$required" =~ ^[0-9]+$ ]]; then
+            local required_major="${required}"
+            local current_major="${current%%.*}"
+            [ "$required_major" = "$current_major" ]
+          else
+            # For specific version, check exact match or compatible
+            [ "$required" = "$current" ]
+          fi
+        }
+        
+        # Get currently installed bundler version
+        CURRENT_BUNDLER=$(bundle --version 2>/dev/null | awk '{print $NF}' || echo "")
+        if [ -n "$CURRENT_BUNDLER" ]; then
+          echo "Current Bundler version: $CURRENT_BUNDLER"
+        fi
+        
+        # Determine Bundler version to install
+        if [ "$BUNDLER_INPUT" = "Gemfile.lock" ]; then
+          if [ -f "Gemfile.lock" ]; then
+            # Extract BUNDLED WITH version from Gemfile.lock
+            BUNDLER_VERSION=$(awk '/^BUNDLED WITH$/{getline; print $1}' Gemfile.lock 2>/dev/null || echo "")
+            if [ -n "$BUNDLER_VERSION" ]; then
+              echo "Found Bundler version in Gemfile.lock: $BUNDLER_VERSION"
+              # Check if this version is already installed
+              if is_bundler_installed "$BUNDLER_VERSION"; then
+                echo "Bundler $BUNDLER_VERSION is already installed"
+                echo "version=$BUNDLER_VERSION" >> $GITHUB_OUTPUT
+                exit 0
+              fi
+            else
+              echo "No BUNDLED WITH found in Gemfile.lock, using default"
+              BUNDLER_INPUT="default"
+            fi
+          else
+            echo "No Gemfile.lock found, using default Bundler"
+            BUNDLER_INPUT="default"
+          fi
+        fi
+        
+        if [ "$BUNDLER_INPUT" = "default" ]; then
+          # Ruby 3.2+ ships with Bundler 2.2+, use it
+          if [ -n "$CURRENT_BUNDLER" ]; then
+            echo "Using default Bundler: $CURRENT_BUNDLER"
+            echo "version=$CURRENT_BUNDLER" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          BUNDLER_INPUT="latest"
+        fi
+        
+        if [ "$BUNDLER_INPUT" = "latest" ]; then
+          # Check if we already have a recent bundler
+          if [ -n "$CURRENT_BUNDLER" ]; then
+            CURRENT_MAJOR="${CURRENT_BUNDLER%%.*}"
+            # If we have Bundler 2+, that's fine for "latest" on most Rubies
+            if [ "$CURRENT_MAJOR" -ge 2 ]; then
+              echo "Using existing Bundler $CURRENT_BUNDLER (satisfies 'latest')"
+              echo "version=$CURRENT_BUNDLER" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+          fi
+          echo "Installing latest Bundler..."
+          gem install bundler --no-document --force 2>/dev/null || gem install bundler --no-document
+          INSTALLED_VERSION=$(bundle --version | awk '{print $NF}')
+          echo "Installed Bundler: $INSTALLED_VERSION"
+          echo "version=$INSTALLED_VERSION" >> $GITHUB_OUTPUT
+        elif [ -n "$BUNDLER_VERSION" ]; then
+          # Install specific version from Gemfile.lock
+          echo "Installing Bundler version $BUNDLER_VERSION..."
+          gem install bundler -v "$BUNDLER_VERSION" --no-document --force 2>/dev/null || \
+            gem install bundler -v "$BUNDLER_VERSION" --no-document
+          echo "version=$BUNDLER_VERSION" >> $GITHUB_OUTPUT
+        elif [[ "$BUNDLER_INPUT" =~ ^[0-9] ]]; then
+          # Version number provided - check if already satisfied
+          if [ -n "$CURRENT_BUNDLER" ] && bundler_satisfies "$BUNDLER_INPUT" "$CURRENT_BUNDLER"; then
+            echo "Using existing Bundler $CURRENT_BUNDLER (satisfies '$BUNDLER_INPUT')"
+            echo "version=$CURRENT_BUNDLER" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          echo "Installing Bundler version $BUNDLER_INPUT..."
+          if [[ "$BUNDLER_INPUT" =~ ^[0-9]+$ ]]; then
+            # Just major version, use ~> constraint
+            gem install bundler -v "~> $BUNDLER_INPUT.0" --no-document --force 2>/dev/null || \
+              gem install bundler -v "~> $BUNDLER_INPUT.0" --no-document
+          else
+            gem install bundler -v "$BUNDLER_INPUT" --no-document --force 2>/dev/null || \
+              gem install bundler -v "$BUNDLER_INPUT" --no-document
+          fi
+          INSTALLED_VERSION=$(bundle --version | awk '{print $NF}')
+          echo "version=$INSTALLED_VERSION" >> $GITHUB_OUTPUT
+        fi
+
     - name: Generate summary (Ruby only)
       if: inputs.ore-install != 'true'
       shell: bash
       run: |
+        RUBYGEMS_VERSION="${{ steps.configure-rubygems.outputs.version }}"
+        if [ -z "$RUBYGEMS_VERSION" ]; then
+          RUBYGEMS_VERSION="${{ steps.setup.outputs.gem-version }}"
+        fi
+        BUNDLER_VERSION="${{ steps.install-bundler.outputs.version }}"
+        if [ -z "$BUNDLER_VERSION" ]; then
+          BUNDLER_VERSION=$(bundle --version 2>/dev/null | awk '{print $NF}' || echo "default")
+        fi
+        
         echo "### setup-rv Summary ⚡" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "| Component | Value |" >> $GITHUB_STEP_SUMMARY
         echo "|-----------|-------|" >> $GITHUB_STEP_SUMMARY
         echo "| Ruby Version | ${{ steps.detect-ruby.outputs.version }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| RubyGems Version | $RUBYGEMS_VERSION |" >> $GITHUB_STEP_SUMMARY
+        echo "| Bundler Version | $BUNDLER_VERSION |" >> $GITHUB_STEP_SUMMARY
         echo "| rv Version | ${{ steps.rv-version.outputs.version }} |" >> $GITHUB_STEP_SUMMARY
         echo "| Platform | ${{ steps.platform.outputs.platform }} |" >> $GITHUB_STEP_SUMMARY
         echo "| Ruby Cache Hit | ${{ steps.cache-ruby.outputs.cache-hit }} |" >> $GITHUB_STEP_SUMMARY
@@ -328,7 +511,8 @@ runs:
       id: cache-gems
       uses: actions/cache@v4
       with:
-        path: ${{ inputs.working-directory }}/vendor/bundle
+        path: |
+          ${{ steps.setup.outputs.ruby-prefix }}/lib/ruby/gems
         key: ${{ steps.gem-cache-key.outputs.key }}
         restore-keys: ${{ steps.gem-cache-key.outputs.restore-keys }}
 
@@ -340,9 +524,18 @@ runs:
       working-directory: ${{ inputs.working-directory }}
       env:
         # Ensure ore uses the rv-installed Ruby's gem directory
-        GEM_HOME: ${{ steps.setup.outputs.ruby-prefix }}/lib/ruby/gems/${{ steps.setup.outputs.ruby-version }}.0
-        GEM_PATH: ${{ steps.setup.outputs.ruby-prefix }}/lib/ruby/gems/${{ steps.setup.outputs.ruby-version }}.0
+        # Use ruby-full-version for the gems path (e.g., 3.4.8 -> gems/3.4.0)
+        GEM_HOME: ${{ steps.setup.outputs.ruby-prefix }}/lib/ruby/gems/${{ steps.detect-ruby.outputs.version }}.0
+        GEM_PATH: ${{ steps.setup.outputs.ruby-prefix }}/lib/ruby/gems/${{ steps.detect-ruby.outputs.version }}.0
       run: |
+        # Ensure we're using the rv-installed Ruby
+        export PATH="${{ steps.setup.outputs.ruby-prefix }}/bin:$PATH"
+        
+        # Verify we're using the right Ruby
+        echo "Using Ruby: $(which ruby)"
+        echo "Ruby version: $(ruby --version)"
+        echo "GEM_HOME: $GEM_HOME"
+        
         # Build ore install command
         INSTALL_CMD="ore install"
         if [ "${{ inputs.skip-extensions }}" = "true" ]; then
@@ -361,12 +554,24 @@ runs:
         echo "ore-version=${{ steps.ore-version.outputs.version }}" >> $GITHUB_OUTPUT
         echo "cache-hit=${{ steps.cache-gems.outputs.cache-hit }}" >> $GITHUB_OUTPUT
 
+        # Get RubyGems and Bundler versions for summary
+        RUBYGEMS_VERSION="${{ steps.configure-rubygems.outputs.version }}"
+        if [ -z "$RUBYGEMS_VERSION" ]; then
+          RUBYGEMS_VERSION="${{ steps.setup.outputs.gem-version }}"
+        fi
+        BUNDLER_VERSION="${{ steps.install-bundler.outputs.version }}"
+        if [ -z "$BUNDLER_VERSION" ]; then
+          BUNDLER_VERSION=$(bundle --version 2>/dev/null | awk '{print $NF}' || echo "default")
+        fi
+
         # Summary
         echo "### setup-rv Summary ⚡" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "| Component | Value |" >> $GITHUB_STEP_SUMMARY
         echo "|-----------|-------|" >> $GITHUB_STEP_SUMMARY
         echo "| Ruby Version | ${{ steps.detect-ruby.outputs.version }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| RubyGems Version | $RUBYGEMS_VERSION |" >> $GITHUB_STEP_SUMMARY
+        echo "| Bundler Version | $BUNDLER_VERSION |" >> $GITHUB_STEP_SUMMARY
         echo "| rv Version | ${{ steps.rv-version.outputs.version }} |" >> $GITHUB_STEP_SUMMARY
         echo "| ore Version | ${{ steps.ore-version.outputs.version }} |" >> $GITHUB_STEP_SUMMARY
         echo "| Platform | ${{ steps.platform.outputs.platform }} |" >> $GITHUB_STEP_SUMMARY
