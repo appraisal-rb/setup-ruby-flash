@@ -332,27 +332,16 @@ runs:
         key: ${{ steps.gem-cache-key.outputs.key }}
         restore-keys: ${{ steps.gem-cache-key.outputs.restore-keys }}
 
-    - name: Clean stale native extensions
-      if: inputs.ore-install == 'true'
-      shell: bash
-      working-directory: ${{ inputs.working-directory }}
-      run: |
-        # If vendor/bundle exists but was copied from local dev or has wrong ABI extensions,
-        # we need to clean it to force rebuild of native extensions
-        if [ -d "vendor/bundle" ]; then
-          # Check if extensions directory exists and remove it to force rebuild
-          find vendor/bundle -type d -name "extensions" -exec rm -rf {} + 2>/dev/null || true
-          # Also remove any .so files that may have wrong ABI
-          find vendor/bundle -name "*.so" -delete 2>/dev/null || true
-          find vendor/bundle -name "*.bundle" -delete 2>/dev/null || true
-          echo "Cleaned native extension artifacts to ensure proper rebuild"
-        fi
 
     - name: Install gems with ore
       if: inputs.ore-install == 'true'
       id: install-gems
       shell: bash
       working-directory: ${{ inputs.working-directory }}
+      env:
+        # Ensure ore uses the rv-installed Ruby's gem directory
+        GEM_HOME: ${{ steps.setup.outputs.ruby-prefix }}/lib/ruby/gems/${{ steps.setup.outputs.ruby-version }}.0
+        GEM_PATH: ${{ steps.setup.outputs.ruby-prefix }}/lib/ruby/gems/${{ steps.setup.outputs.ruby-version }}.0
       run: |
         # Build ore install command
         INSTALL_CMD="ore install"
