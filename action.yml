@@ -280,8 +280,12 @@ runs:
           "https://api.github.com/repos/spinel-coop/rv-ruby/releases/latest" 2>/dev/null) || true
         
         if [ -n "$RESPONSE" ]; then
-          # Extract ETag from headers
-          ETAG=$(grep -i '^etag:' /tmp/headers.txt | tr -d '\r' | sed 's/^[eE][tT][aA][gG]: *//' || echo "")
+          # Extract ETag from headers - GitHub sends it with quotes like: etag: "abc123" or W/"abc123"
+          RAW_ETAG=$(grep -i '^etag:' /tmp/headers.txt | tr -d '\r' | sed 's/^[eE][tT][aA][gG]: *//' || echo "")
+          echo "Raw ETag from header: [$RAW_ETAG]"
+          # Remove W/ prefix if present, then remove all double quotes
+          ETAG=$(echo "$RAW_ETAG" | sed 's/^W\///' | tr -d '"')
+          echo "Cleaned ETag: [$ETAG]"
           
           # Calculate expires_at as Unix timestamp + 3600 seconds (1 hour)
           # serde serializes SystemTime as {"secs_since_epoch": N, "nanos_since_epoch": N}
@@ -293,6 +297,7 @@ runs:
           else
             ETAG_JSON="null"
           fi
+          echo "ETag JSON value: $ETAG_JSON"
           
           # Create the cached release JSON in rv's expected format
           echo "{\"expires_at\":{\"secs_since_epoch\":${EXPIRES_SECS},\"nanos_since_epoch\":0},\"etag\":${ETAG_JSON},\"release\":${RESPONSE}}" > "$CACHE_FILE"
