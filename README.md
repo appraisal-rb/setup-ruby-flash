@@ -209,19 +209,18 @@ setup-rv is designed to be a near drop-in replacement for `ruby/setup-ruby` on s
 
 ### Key Differences
 
-| Feature | setup-ruby | setup-rv |
-|---------|------------|----------|
-| Ruby Install | ~5 seconds | < 2 seconds |
-| Gem Install | Bundler | ore (~50% faster) |
-| `ruby-version: ruby` | ✅ latest stable | ✅ latest stable |
-| `rubygems: latest` | ✅ | ✅ |
-| `bundler: latest` | ✅ | ✅ |
-| Windows | ✅ | ❌ |
-| Ruby < 3.2 | ✅ | ❌ |
-| JRuby | ✅ | ❌ (planned) |
-
-| TruffleRuby | ✅ | ❌ (planned) |
-| Security Audit | ❌ | ✅ (`ore audit`) |
+| Feature              | setup-ruby      | setup-rv          |
+|----------------------|-----------------|-------------------|
+| Ruby Install         | ~5 seconds      | < 2 seconds       |
+| Gem Install          | Bundler         | ore (~50% faster) |
+| `ruby-version: ruby` | ✅ latest stable | ✅ latest stable   |
+| `rubygems: latest`   | ✅               | ✅                 |
+| `bundler: latest`    | ✅               | ✅                 |
+| Windows              | ✅               | ❌                 |
+| Ruby < 3.2           | ✅               | ❌                 |
+| JRuby                | ✅               | ❌ (planned)       |
+| TruffleRuby          | ✅               | ❌ (planned)       |
+| Security Audit       | ❌               | ✅ (`ore audit`)   |
 
 ## About rv and ore
 
