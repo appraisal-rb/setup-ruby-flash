@@ -1,0 +1,25 @@
+# Bundler
+/.bundle/
+/vendor/bundle/
+
+# RSpec
+/tmp/
+
+# Coverage
+/coverage/
+
+# IDE
+/.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Keep vendor/rv, vendor/ore-light, vendor/setup-ruby (reference implementations)
+# but ignore any installed gems
+!/vendor/rv/
+!/vendor/ore-light/
+!/vendor/setup-ruby/

@@ -1,0 +1,379 @@
+name: Test this action
+on:
+  pull_request:
+  push:
+    branches-ignore:
+    - v1
+    tags-ignore:
+    - '*'
+    paths-ignore:
+    - README.md
+  workflow_dispatch:
+permissions:
+  contents: read
+
+jobs:
+  test-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+    - uses: actions/checkout@v6
+    - uses: ./
+      with:
+        ruby-version: ruby
+    - id: matrix
+      run: echo "matrix=$(ruby generate-test-matrix.rb)" | tee -a "$GITHUB_OUTPUT"
+    - run: echo "$MATRIX" | yq -P
+      env:
+        MATRIX: ${{ steps.matrix.outputs.matrix }}
+
+  test:
+    needs: [test-matrix]
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.test-matrix.outputs.matrix) }}
+    name: ${{ matrix.os }} ${{ matrix.ruby }}
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: actions/checkout@v6
+
+    - uses: ./
+      with:
+        ruby-version: ${{ matrix.ruby }}
+        bundler-cache: true
+    - run: ruby -v
+    - name: PATH
+      shell: pwsh
+      run: |
+        # Show PATH with Powershell
+        $f, $r = $env:PATH.split([IO.Path]::PathSeparator); $r
+
+    - name: build compiler
+      run: |
+        ruby -e "puts 'build compiler: ' + RbConfig::CONFIG.fetch('CC_VERSION_MESSAGE', 'unknown').lines.first"
+    - name: gcc and ridk version (mingw)
+      if: runner.os == 'Windows'
+      run: |
+        $abi, $plat = $(ruby -e "STDOUT.write RbConfig::CONFIG['ruby_version'] + ' ' + RUBY_PLATFORM").split(' ')
+        if ($plat.Contains('mingw')) {
+          gcc --version
+          if ($abi -ge '2.4') {
+            ridk version
+          } else {
+            echo 'ridk is unavailable'
+          }
+        } elseif ($plat.Contains('mswin')) {
+          Get-ChildItem "$env:VCPKG_INSTALLATION_ROOT\installed\vcpkg\info"
+        }
+    - name: RbConfig::CONFIG
+      run: ruby -rrbconfig -rpp -e 'pp RbConfig::CONFIG'
+    - name: RbConfig::MAKEFILE_CONFIG
+      run: ruby -rrbconfig -rpp -e 'pp RbConfig::MAKEFILE_CONFIG'
+
+    - name: Subprocess test
+      run: ruby test_subprocess.rb
+    - name: OpenSSL compiled version
+      run: ruby -ropenssl -e 'puts OpenSSL::OPENSSL_VERSION'
+    - name: OpenSSL loaded version
+      run: ruby -ropenssl -e 'puts OpenSSL::OPENSSL_LIBRARY_VERSION'
+      if: matrix.ruby != '1.9'
+    - name: OpenSSL test
+      run: ruby -ropen-uri -e 'puts URI.send(:open, %{https://rubygems.org/}) { |f| f.read(1024) }'
+
+    - run: gem env
+    - name: C extension test
+      run: gem install json -v 2.2.0
+    - run: bundle --version
+    # This step is redundant with `bundler-cache: true` but is there to check a redundant `bundle install` still works
+    - run: bundle install
+    - run: bundle exec rake --version
+    - run: bundle exec rake
+
+    # Ensure the same bundle commands work in bash on Windows
+    - name: bundle install (bash)
+      run: bundle install
+      shell: bash
+      if: runner.os == 'Windows'
+    - name: bundle exec rake --version (bash)
+      run: bundle exec rake --version
+      shell: bash
+      if: runner.os == 'Windows'
+    - name: bundle exec rake (bash)
+      run: bundle exec rake
+      shell: bash
+      if: runner.os == 'Windows'
+
+    - name: Test `gem github:` in a Gemfile
+      run: bundle install
+      env:
+        BUNDLE_GEMFILE: ${{ github.workspace }}/gemfiles/gem_from_github.gemfile
+
+    - name: which ruby
+      shell: bash
+      run: which -a ruby
+    - name: which bundle
+      shell: bash
+      run: which -a bundle
+      # https://github.com/ruby/setup-ruby/issues/658
+      if: "matrix.ruby != 'mingw' && matrix.ruby != 'mswin' && matrix.ruby != 'ucrt'"
+    - name: which rake
+      run: which -a rake
+      if: runner.os != 'Windows'
+    - name: where ruby, rake, bundle
+      if: runner.os == 'Windows'
+      run: |
+        $ErrorActionPreference = 'Continue'
+        $where = 'ruby', 'rake', 'bundle'
+        foreach ($e in $where) {
+          $rslt = where.exe $e 2>&1 | Out-String
+          if ($rslt.contains($e)) { echo $rslt.Trim() }
+          else { echo "Can't find $e" }
+          echo ''
+        }
+    - name: bash test
+      shell: bash
+      run: echo ~ && bundle install
+    - name: Windows JRuby
+      if: runner.os == 'Windows' && startsWith(matrix.ruby, 'jruby')
+      run: gem install sassc
+
+  testDotRubyVersion:
+    name: "Test .ruby-version"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - run: echo "ruby-3.4.0" > .ruby-version
+      - uses: ./
+      - run: ruby -v | grep -F "ruby 3.4.0"
+
+  testToolVersions:
+    name: "Test .tool-versions"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - run: echo -e "nodejs 16.0.0\nruby   3.4.0" > .tool-versions
+      - uses: ./
+      - run: ruby -v | grep -F "ruby 3.4.0"
+
+  testMise:
+    name: "Test mise.toml"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - run: echo -e "[tools]\nnode = '18'\nruby = '3.4.0'" > mise.toml
+      - uses: ./
+      - run: ruby -v | grep -F "ruby 3.4.0"
+
+  testNoGemfile:
+    name: "Test with no Gemfile"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - run: rm Gemfile
+      - uses: ./
+        with:
+          ruby-version: '2.6'
+      - run: ruby -v
+
+  testNoGemfileWithBundlerCache:
+    name: "Test with no Gemfile but with bundler-cache"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - run: rm Gemfile
+      - uses: ./
+        with:
+          ruby-version: '2.6'
+          bundler-cache: true
+      - run: ruby -v
+
+  testLatestRubygemsVersion:
+    name: "Test rubygems: latest on ${{ matrix.ruby }}"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - { ruby: '3.2', expected_rubygems_version: '3.6.1'  }
+        - { ruby: '3.0', expected_rubygems_version: '3.5.23' }
+        - { ruby: '2.7', expected_rubygems_version: '3.4.22' }
+        - { ruby: '2.6', expected_rubygems_version: '3.4.22' }
+        - { ruby: '2.5', expected_rubygems_version: '3.3.27' }
+        - { ruby: '2.3', expected_rubygems_version: '3.3.27' }
+        - { ruby: '2.0', expected_rubygems_version: '2.7.11' }
+    steps:
+    - uses: actions/checkout@v6
+    - uses: ./
+      with:
+        ruby-version: ${{ matrix.ruby }}
+        rubygems: latest
+    - run: ruby -e 'puts Gem::VERSION; exit(Gem.rubygems_version >= Gem::Version.new("${{ matrix.expected_rubygems_version }}"))'
+
+  testFixedRubygemsVersionUpgrades:
+    name: "Test rubygems: version upgrades RubyGems to that version if the default is older"
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v6
+    - uses: ./
+      with:
+        ruby-version: '2.6'
+        rubygems: 3.2.3
+    - run: gem --version | grep -F "3.2.3"
+
+  testFixedRubygemsVersionNoop:
+    name: "Test rubygems: version noops if the default is newer"
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v6
+    - uses: ./
+      with:
+        ruby-version: '3.1.0'
+        rubygems: 3.2.3
+    - run: gem --version | grep -F "3.3.3"
+
+  testUseBundlerFromRubyGemsUpdate:
+    name: "Test rubygems: version uses the Bundler installed by the rubygems update"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./
+        with:
+          ruby-version: '3.1.0'
+          rubygems: 3.4.0
+      - run: gem --version | grep -F "3.4.0"
+      - run: bundle --version | grep -F "2.4.0"
+
+  testFixedBundlerVersionForOldRuby:
+    name: "Test bundler: 1.x for old Ruby"
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./
+        with:
+          ruby-version: '2.3'
+          bundler: 1.16.6
+      - run: bundle --version | grep -F "1.16.6" # And not 1.17.x from ~> 1
+
+  testMajorBundlerVersion:
+    name: "Test with a major Bundler version"
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v6
+    - uses: ./
+      with:
+        ruby-version: '2.6'
+        bundler: 2
+    - run: bundle --version | grep -P "Bundler version 2\.\d+\.\d+"
+
+  testMinorBundlerVersion:
+    name: "Test with a minor Bundler version"
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v6
+    - uses: ./
+      with:
+        ruby-version: '2.6'
+        bundler: 2.2
+    - run: bundle --version | grep -P "Bundler version 2\.2\.\d+"
+
+  testExactBundlerVersion:
+    name: "Test with an exact Bundler version"
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v6
+    - uses: ./
+      with:
+        ruby-version: '2.6'
+        bundler: 2.2.3
+    - run: bundle --version | grep -F "Bundler version 2.2.3"
+
+  # https://github.com/ruby/setup-ruby/issues/845
+  testOlderBundlerVersion:
+    name: "Test with an older Bundler version than the one of the default gem"
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v6
+    - uses: ./
+      with:
+        ruby-version: '4.0'
+        bundler: 2.7.2
+        bundler-cache: true
+    - run: bundle --version | grep -F "Bundler version 2.7.2"
+
+  testBundlerPre:
+    name: "Test with a Bundler pre/rc version"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./
+        with:
+          ruby-version: '2.6'
+          bundler: 2.2.0.rc.2
+      - run: bundle --version | grep -F "Bundler version 2.2.0.rc.2"
+
+  testBundlerDev:
+    name: "Test BUNDLED WITH Bundler dev"
+    runs-on: ubuntu-latest
+    env:
+      BUNDLE_GEMFILE: ${{ github.workspace }}/gemfiles/bundler-dev.gemfile
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./
+        with:
+          ruby-version: ruby-head
+          bundler-cache: true
+
+  testDependencyOnBundler1:
+    name: "Test gemfile depending on Bundler 1"
+    runs-on: ubuntu-latest
+    env:
+      BUNDLE_GEMFILE: ${{ github.workspace }}/gemfiles/bundler1.gemfile
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./
+        with:
+          ruby-version: '2.7'
+          bundler: 1
+          bundler-cache: true
+      - run: bundle --version | grep -F "Bundler version 1."
+
+  testGemfileMatrix:
+    strategy:
+      fail-fast: false
+      matrix:
+        gemfile: [ rails7, rails8 ]
+    name: "Test with ${{ matrix.gemfile }} gemfile"
+    runs-on: ubuntu-latest
+    env:
+      BUNDLE_GEMFILE: ${{ github.workspace }}/gemfiles/${{ matrix.gemfile }}.gemfile
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./
+        with:
+          ruby-version: '3.2'
+          bundler-cache: true
+      - run: bundle exec rails --version
+
+  testWindowsToolchain:
+    name: "Test windows-toolchain: none"
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./
+        with:
+          ruby-version: '2.7'
+          windows-toolchain: none
+          bundler: none
+      - name: C:/msys64/mingw64/bin/gcc.exe not installed
+        run: ruby -e "abort if File.exist?('C:/msys64/mingw64/bin/gcc.exe')"
+
+  lint:
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v6
+    - run: yarn install
+    - run: yarn run package
+    - name: Check generated files are up to date
+      run: git diff --exit-code

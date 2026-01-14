@@ -1,0 +1,385 @@
+name: 'Setup Ruby with rv and ore'
+description: 'Fast Ruby environment setup using rv for Ruby installation and ore for gem management'
+author: 'appraisal-rb'
+
+branding:
+  icon: 'zap'
+  color: 'red'
+
+inputs:
+  ruby-version:
+    description: |
+      Ruby version to install. Reads from .ruby-version, .tool-versions, or mise.toml if set to 'default'.
+      Supported versions: 3.2, 3.3, 3.4, 4.0
+    required: false
+    default: 'default'
+
+  ore-install:
+    description: |
+      Run "ore install" to install gems and cache them automatically.
+      Either 'true' or 'false'.
+    required: false
+    default: 'false'
+
+  working-directory:
+    description: |
+      Working directory for resolving version files (.ruby-version, etc.) and Gemfile.
+    required: false
+    default: '.'
+
+  cache-version:
+    description: |
+      Cache version string. Change this to invalidate caches when needed.
+    required: false
+    default: 'v1'
+
+  rv-version:
+    description: |
+      Version of rv to install. Either 'latest' or a specific version (e.g., '0.4.0').
+    required: false
+    default: 'latest'
+
+  ore-version:
+    description: |
+      Version of ore to install. Either 'latest' or a specific version (e.g., '0.1.0').
+    required: false
+    default: 'latest'
+
+  skip-extensions:
+    description: |
+      Skip building native extensions during gem installation.
+      Either 'true' or 'false'.
+    required: false
+    default: 'false'
+
+  without-groups:
+    description: |
+      Gem groups to exclude from installation (comma-separated).
+      Example: 'development,test'
+    required: false
+    default: ''
+
+  token:
+    description: |
+      GitHub token for API calls and downloading releases.
+      The default token is usually sufficient.
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  ruby-version:
+    description: 'The installed Ruby version'
+    value: ${{ steps.setup.outputs.ruby-version }}
+
+  ruby-prefix:
+    description: 'The prefix/path of the installed Ruby'
+    value: ${{ steps.setup.outputs.ruby-prefix }}
+
+  rv-version:
+    description: 'The installed rv version'
+    value: ${{ steps.setup.outputs.rv-version }}
+
+  ore-version:
+    description: 'The installed ore version (if ore-install is true)'
+    value: ${{ steps.setup.outputs.ore-version }}
+
+  cache-hit:
+    description: 'Whether gems were restored from cache'
+    value: ${{ steps.setup.outputs.cache-hit }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Validate platform
+      id: platform
+      shell: bash
+      run: |
+        # Detect OS
+        case "$RUNNER_OS" in
+          Linux)   OS="linux" ;;
+          macOS)   OS="darwin" ;;
+          *)
+            echo "::error::Unsupported OS: $RUNNER_OS. setup-rv only supports Linux and macOS."
+            exit 1
+            ;;
+        esac
+
+        # Detect architecture
+        ARCH="$(uname -m)"
+        case "$ARCH" in
+          x86_64)  ARCH="amd64" ;;
+          aarch64) ARCH="arm64" ;;
+          arm64)   ARCH="arm64" ;;
+          *)
+            echo "::error::Unsupported architecture: $ARCH. setup-rv only supports x86_64 and arm64."
+            exit 1
+            ;;
+        esac
+
+        echo "os=$OS" >> $GITHUB_OUTPUT
+        echo "arch=$ARCH" >> $GITHUB_OUTPUT
+        echo "platform=$OS-$ARCH" >> $GITHUB_OUTPUT
+        echo "Detected platform: $OS-$ARCH"
+
+    - name: Resolve rv version
+      id: rv-version
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+      run: |
+        if [ "${{ inputs.rv-version }}" = "latest" ]; then
+          VERSION=$(gh api repos/spinel-coop/rv/releases/latest --jq '.tag_name' 2>/dev/null || echo "v0.4.1")
+        else
+          VERSION="${{ inputs.rv-version }}"
+        fi
+        VERSION="${VERSION#v}"
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Resolved rv version: $VERSION"
+
+    - name: Cache rv binary
+      id: cache-rv
+      uses: actions/cache@v4
+      with:
+        path: ~/.local/bin/rv
+        key: setup-rv-rv-${{ steps.platform.outputs.platform }}-${{ steps.rv-version.outputs.version }}
+
+    - name: Install rv
+      if: steps.cache-rv.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        VERSION="${{ steps.rv-version.outputs.version }}"
+        OS="${{ steps.platform.outputs.os }}"
+        ARCH="${{ steps.platform.outputs.arch }}"
+
+        # Map to rv platform names
+        case "$OS-$ARCH" in
+          linux-amd64)  RV_PLATFORM="x86_64-unknown-linux-gnu" ;;
+          linux-arm64)  RV_PLATFORM="aarch64-unknown-linux-gnu" ;;
+          darwin-amd64) RV_PLATFORM="x86_64-apple-darwin" ;;
+          darwin-arm64) RV_PLATFORM="aarch64-apple-darwin" ;;
+        esac
+
+        # rv releases use .tar.xz format with files in a subdirectory
+        DOWNLOAD_URL="https://github.com/spinel-coop/rv/releases/download/v${VERSION}/rv-${RV_PLATFORM}.tar.xz"
+        echo "Downloading rv from: $DOWNLOAD_URL"
+
+        mkdir -p ~/.local/bin
+        curl -fsSL "$DOWNLOAD_URL" | tar -xJ --strip-components=1 -C ~/.local/bin "rv-${RV_PLATFORM}/rv"
+        chmod +x ~/.local/bin/rv
+
+        echo "Installed rv $VERSION"
+
+    - name: Add rv to PATH
+      shell: bash
+      run: |
+        echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+    - name: Detect Ruby version
+      id: detect-ruby
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        RUBY_VERSION="${{ inputs.ruby-version }}"
+
+        if [ "$RUBY_VERSION" = "default" ]; then
+          # Check version files in order of precedence
+          if [ -f ".ruby-version" ]; then
+            RUBY_VERSION=$(cat .ruby-version | head -1 | sed 's/^ruby-//' | tr -d '[:space:]')
+            echo "Found Ruby version in .ruby-version: $RUBY_VERSION"
+          elif [ -f ".tool-versions" ]; then
+            RUBY_VERSION=$(grep '^ruby ' .tool-versions | awk '{print $2}' | sed 's/^ruby-//')
+            echo "Found Ruby version in .tool-versions: $RUBY_VERSION"
+          elif [ -f "mise.toml" ]; then
+            RUBY_VERSION=$(grep 'ruby' mise.toml | sed 's/.*= *"\?\([^"]*\)"\?.*/\1/' | sed 's/^ruby-//')
+            echo "Found Ruby version in mise.toml: $RUBY_VERSION"
+          else
+            echo "::error::No Ruby version specified and no version file found (.ruby-version, .tool-versions, mise.toml)"
+            exit 1
+          fi
+        fi
+
+        echo "version=$RUBY_VERSION" >> $GITHUB_OUTPUT
+        echo "Using Ruby version: $RUBY_VERSION"
+
+    - name: Cache Ruby installation
+      id: cache-ruby
+      uses: actions/cache@v4
+      with:
+        path: ~/.local/share/rv/rubies
+        key: setup-rv-ruby-${{ inputs.cache-version }}-${{ steps.platform.outputs.platform }}-${{ steps.detect-ruby.outputs.version }}
+
+    - name: Install Ruby
+      if: steps.cache-ruby.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        echo "Installing Ruby ${{ steps.detect-ruby.outputs.version }} via rv..."
+        ~/.local/bin/rv ruby install ${{ steps.detect-ruby.outputs.version }}
+
+    - name: Configure Ruby environment
+      id: setup
+      shell: bash
+      run: |
+        RUBY_VERSION="${{ steps.detect-ruby.outputs.version }}"
+        
+        # Use rv to find the installed Ruby executable path
+        RUBY_EXECUTABLE=$(~/.local/bin/rv ruby find "$RUBY_VERSION" 2>/dev/null)
+        
+        if [ -z "$RUBY_EXECUTABLE" ]; then
+          echo "::error::Could not find Ruby $RUBY_VERSION installation"
+          ~/.local/bin/rv ruby list || true
+          exit 1
+        fi
+        
+        # Get the bin directory from the executable path
+        RUBY_BIN_DIR=$(dirname "$RUBY_EXECUTABLE")
+        RUBY_PREFIX=$(dirname "$RUBY_BIN_DIR")
+        echo "Found Ruby at: $RUBY_PREFIX"
+
+        # Add Ruby to PATH
+        echo "$RUBY_BIN_DIR" >> $GITHUB_PATH
+
+        # Get the actual full Ruby version for cache key accuracy
+        export PATH="$RUBY_BIN_DIR:$PATH"
+        FULL_RUBY_VERSION=$(ruby -e 'print RUBY_VERSION')
+        
+        # Set outputs
+        echo "ruby-version=$RUBY_VERSION" >> $GITHUB_OUTPUT
+        echo "ruby-full-version=$FULL_RUBY_VERSION" >> $GITHUB_OUTPUT
+        echo "ruby-prefix=$RUBY_PREFIX" >> $GITHUB_OUTPUT
+        echo "rv-version=${{ steps.rv-version.outputs.version }}" >> $GITHUB_OUTPUT
+
+        # Verify Ruby installation
+        ruby --version
+        gem --version
+
+    - name: Generate summary (Ruby only)
+      if: inputs.ore-install != 'true'
+      shell: bash
+      run: |
+        echo "### setup-rv Summary ⚡" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "| Component | Value |" >> $GITHUB_STEP_SUMMARY
+        echo "|-----------|-------|" >> $GITHUB_STEP_SUMMARY
+        echo "| Ruby Version | ${{ steps.detect-ruby.outputs.version }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| rv Version | ${{ steps.rv-version.outputs.version }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Platform | ${{ steps.platform.outputs.platform }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Ruby Cache Hit | ${{ steps.cache-ruby.outputs.cache-hit }} |" >> $GITHUB_STEP_SUMMARY
+
+    - name: Resolve ore version
+      if: inputs.ore-install == 'true'
+      id: ore-version
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+      run: |
+        if [ "${{ inputs.ore-version }}" = "latest" ]; then
+          VERSION=$(gh api repos/contriboss/ore-light/releases/latest --jq '.tag_name' 2>/dev/null || echo "v0.17.2")
+        else
+          VERSION="${{ inputs.ore-version }}"
+        fi
+        VERSION="${VERSION#v}"
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Resolved ore version: $VERSION"
+
+    - name: Cache ore binary
+      if: inputs.ore-install == 'true'
+      id: cache-ore
+      uses: actions/cache@v4
+      with:
+        path: ~/.local/bin/ore
+        key: setup-rv-ore-${{ steps.platform.outputs.platform }}-${{ steps.ore-version.outputs.version }}
+
+    - name: Install ore
+      if: inputs.ore-install == 'true' && steps.cache-ore.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        VERSION="${{ steps.ore-version.outputs.version }}"
+        BINARY_NAME="ore-${{ steps.platform.outputs.os }}-${{ steps.platform.outputs.arch }}"
+        DOWNLOAD_URL="https://github.com/contriboss/ore-light/releases/download/v${VERSION}/${BINARY_NAME}"
+
+        echo "Downloading ore from: $DOWNLOAD_URL"
+        curl -fsSL "$DOWNLOAD_URL" -o ~/.local/bin/ore
+        chmod +x ~/.local/bin/ore
+
+        echo "Installed ore $VERSION"
+
+    - name: Generate gem cache key
+      if: inputs.ore-install == 'true'
+      id: gem-cache-key
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        if [ -f "Gemfile.lock" ]; then
+          LOCKFILE_HASH=$(sha256sum Gemfile.lock | awk '{print $1}')
+        else
+          LOCKFILE_HASH="no-lockfile"
+        fi
+
+        # Use full Ruby version to prevent ABI mismatch with native extensions
+        FULL_RUBY="${{ steps.setup.outputs.ruby-full-version }}"
+        CACHE_KEY="setup-rv-gems-${{ inputs.cache-version }}-${{ steps.platform.outputs.platform }}-ruby-${FULL_RUBY}-${LOCKFILE_HASH}"
+        echo "key=$CACHE_KEY" >> $GITHUB_OUTPUT
+
+        # Only restore from caches with the same full Ruby version to prevent ABI mismatches
+        echo "restore-keys=setup-rv-gems-${{ inputs.cache-version }}-${{ steps.platform.outputs.platform }}-ruby-${FULL_RUBY}-" >> $GITHUB_OUTPUT
+
+    - name: Cache gems
+      if: inputs.ore-install == 'true'
+      id: cache-gems
+      uses: actions/cache@v4
+      with:
+        path: ${{ inputs.working-directory }}/vendor/bundle
+        key: ${{ steps.gem-cache-key.outputs.key }}
+        restore-keys: ${{ steps.gem-cache-key.outputs.restore-keys }}
+
+    - name: Clean stale native extensions
+      if: inputs.ore-install == 'true'
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        # If vendor/bundle exists but was copied from local dev or has wrong ABI extensions,
+        # we need to clean it to force rebuild of native extensions
+        if [ -d "vendor/bundle" ]; then
+          # Check if extensions directory exists and remove it to force rebuild
+          find vendor/bundle -type d -name "extensions" -exec rm -rf {} + 2>/dev/null || true
+          # Also remove any .so files that may have wrong ABI
+          find vendor/bundle -name "*.so" -delete 2>/dev/null || true
+          find vendor/bundle -name "*.bundle" -delete 2>/dev/null || true
+          echo "Cleaned native extension artifacts to ensure proper rebuild"
+        fi
+
+    - name: Install gems with ore
+      if: inputs.ore-install == 'true'
+      id: install-gems
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        # Build ore install command
+        INSTALL_CMD="ore install"
+        if [ "${{ inputs.skip-extensions }}" = "true" ]; then
+          INSTALL_CMD="$INSTALL_CMD --skip-extensions"
+        fi
+        if [ -n "${{ inputs.without-groups }}" ]; then
+          INSTALL_CMD="$INSTALL_CMD --without ${{ inputs.without-groups }}"
+        fi
+
+        echo "Running: $INSTALL_CMD"
+        START_TIME=$(date +%s)
+        $INSTALL_CMD
+        END_TIME=$(date +%s)
+        ELAPSED=$((END_TIME - START_TIME))
+
+        echo "ore-version=${{ steps.ore-version.outputs.version }}" >> $GITHUB_OUTPUT
+        echo "cache-hit=${{ steps.cache-gems.outputs.cache-hit }}" >> $GITHUB_OUTPUT
+
+        # Summary
+        echo "### setup-rv Summary ⚡" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "| Component | Value |" >> $GITHUB_STEP_SUMMARY
+        echo "|-----------|-------|" >> $GITHUB_STEP_SUMMARY
+        echo "| Ruby Version | ${{ steps.detect-ruby.outputs.version }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| rv Version | ${{ steps.rv-version.outputs.version }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| ore Version | ${{ steps.ore-version.outputs.version }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Platform | ${{ steps.platform.outputs.platform }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Gem Cache Hit | ${{ steps.cache-gems.outputs.cache-hit }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Install Time | ${ELAPSED}s |" >> $GITHUB_STEP_SUMMARY

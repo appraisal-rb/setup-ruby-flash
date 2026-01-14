@@ -1,0 +1,8 @@
+#!/bin/sh
+set -e
+
+if [ "$(dirname "$0")" != ".git/hooks" ] || git diff --cached --name-only | grep -E '.(js|json)$|yarn.lock'; then
+  yarn install
+  yarn run package
+  exec git add dist/index.js
+fi
