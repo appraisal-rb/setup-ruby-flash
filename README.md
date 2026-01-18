@@ -15,8 +15,8 @@
 
 [![CI](https://github.com/appraisal-rb/setup-ruby-flash/actions/workflows/ci.yml/badge.svg)](https://github.com/appraisal-rb/setup-ruby-flash/actions/workflows/ci.yml)  [![GitHub tag (latest SemVer)][⛳️tag-img]][⛳️tag] [![License: MIT][📄license-img]][📄license-ref]
 
-[⛳️tag-img]: https://img.shields.io/github/tag/kettle-rb/ast-merge.svg
-[⛳️tag]: http://github.com/kettle-rb/ast-merge/releases
+[⛳️tag-img]: https://img.shields.io/github/tag/appraisal-rb/setup-ruby-flash.svg
+[⛳️tag]: http://github.com/appraisal-rb/setup-ruby-flash/releases
 [📄license-ref]: https://opensource.org/licenses/MIT
 [📄license-img]: https://img.shields.io/badge/License-MIT-259D6C.svg
 
@@ -44,7 +44,12 @@ A _fast_ GitHub Action for fast Ruby environment setup using [rv](https://github
 - **Architectures**: x86_64, ARM64
 - **Ruby Versions**: 3.2, 3.3, 3.4, 4.0
 
-> **Note**: Windows is not supported. For Windows CI, use [ruby/setup-ruby](https://github.com/ruby/setup-ruby).
+| # | Important                    | Alternative                   |
+|---|------------------------------|-------------------------------|
+| 1 | Windows is not supported     | [ruby/setup-ruby][setup-ruby] |
+| 2 | Ruby <= 3.1 is not supported | [ruby/setup-ruby][setup-ruby] |
+
+[setup-ruby]: https://github.com/ruby/setup-ruby
 
 ## Quick Start
 
