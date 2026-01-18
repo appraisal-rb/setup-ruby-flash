@@ -1,6 +1,24 @@
+[![Galtzo FLOSS Logo by Aboling0, CC BY-SA 4.0][🖼️galtzo-i]][🖼️galtzo-discord] [![Appraisal-rb Logo by Aboling0, CC BY-SA 4.0][🖼️appraisal-rb-i]][🖼️appraisal-rb] [![ruby-lang Logo, Yukihiro Matsumoto, Ruby Visual Identity Team, CC BY-SA 2.5][🖼️ruby-lang-i]][🖼️ruby-lang]
+
+[🖼️galtzo-i]: https://logos.galtzo.com/assets/images/galtzo-floss/avatar-192px.svg
+[🖼️galtzo-discord]: https://discord.gg/3qme4XHNKN
+[🖼️appraisal-rb-i]: https://logos.galtzo.com/assets/images/appraisal-rb/avatar-192px.svg
+[🖼️appraisal-rb]: https://github.com/appraisal-rb/
+[🖼️ruby-lang-i]: https://logos.galtzo.com/assets/images/ruby-lang/avatar-192px.svg
+[🖼️ruby-lang]: https://github.com/ruby-lang
+
 # ⚡️ setup-ruby-flash
 
-[![CI](https://github.com/appraisal-rb/setup-ruby-flash/actions/workflows/ci.yml/badge.svg)](https://github.com/appraisal-rb/setup-ruby-flash/actions/workflows/ci.yml)
+> Find out how fast my workflows can go!
+
+- You, possibly
+
+[![CI](https://github.com/appraisal-rb/setup-ruby-flash/actions/workflows/ci.yml/badge.svg)](https://github.com/appraisal-rb/setup-ruby-flash/actions/workflows/ci.yml)  [![GitHub tag (latest SemVer)][⛳️tag-img]][⛳️tag] [![License: MIT][📄license-img]][📄license-ref]
+
+[⛳️tag-img]: https://img.shields.io/github/tag/kettle-rb/ast-merge.svg
+[⛳️tag]: http://github.com/kettle-rb/ast-merge/releases
+[📄license-ref]: https://opensource.org/licenses/MIT
+[📄license-img]: https://img.shields.io/badge/License-MIT-259D6C.svg
 
 A _fast_ GitHub Action for fast Ruby environment setup using [rv](https://github.com/spinel-coop/rv) for Ruby installation and [ore](https://github.com/contriboss/ore-light) for gem management.
 
@@ -15,6 +33,10 @@ A _fast_ GitHub Action for fast Ruby environment setup using [rv](https://github
 - 💾 **Intelligent caching** for both Ruby and gems
 - 🔒 **Security auditing** via `ore audit`
 - 🐧 **Linux & macOS support** (x86_64 and ARM64)
+- ☕️ **Gitea [Actions](https://docs.gitea.com/usage/actions/overview) support**
+- 🦊 **Forgejo [Actions](https://forgejo.org/docs/next/admin/actions/) support**
+- 🧊 **Codeberg [Actions](https://docs.codeberg.org/ci/actions/) support**
+- 🐙 **GitHub [Actions](https://github.com/marketplace/actions/setup-ruby-with-rv-and-ore) support**
 
 ## Requirements
 
