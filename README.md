@@ -355,10 +355,11 @@ as an ethical matter, not as a legal matter.
 <details>
     <summary>Definitions of Terms (What is a Big Business?)</summary>
 
-The purpose of these definitions is to clarify the terms under which this software is free to use,
-and when it is _ethical_ to purchase a commercial license.
+The purpose of these definitions is to explain when I am asking you, as an ethical matter (not a legal one),
+to consider purchasing a commercial license.
 
-These definitions come from the [Big Time Public License version 2.0.2](https://bigtimelicense.com/versions/2.0.2).
+These definitions are inspired by the [Big Time Public License version 2.0.2](https://bigtimelicense.com/versions/2.0.2) and
+are provided solely for these voluntary ethical guidelines. They do not modify or limit the MIT License that legally governs this project.
 
 ### Noncommercial Purposes
 
