@@ -13,7 +13,7 @@
 
 - You, possibly
 
-[![CI](https://github.com/appraisal-rb/setup-ruby-flash/actions/workflows/ci.yml/badge.svg)](https://github.com/appraisal-rb/setup-ruby-flash/actions/workflows/ci.yml)  [![GitHub tag (latest SemVer)][⛳️tag-img]][⛳️tag] [![License: MIT][📄license-img]][📄license-ref]
+[![CI](https://github.com/appraisal-rb/setup-ruby-flash/actions/workflows/ci.yml/badge.svg)](https://github.com/appraisal-rb/setup-ruby-flash/actions/workflows/ci.yml) [![GitHub tag (latest SemVer)][⛳️tag-img]][⛳️tag] [![License: MIT][📄license-img]][📄license-ref]
 
 [⛳️tag-img]: https://img.shields.io/github/tag/appraisal-rb/setup-ruby-flash.svg
 [⛳️tag]: http://github.com/appraisal-rb/setup-ruby-flash/releases
@@ -44,10 +44,10 @@ A _fast_ GitHub Action for fast Ruby environment setup using [rv](https://github
 - **Architectures**: x86_64, ARM64
 - **Ruby Versions**: 3.2, 3.3, 3.4, 4.0
 
-| # | Important                    | Alternative                   |
-|---|------------------------------|-------------------------------|
-| 1 | Windows is not supported     | [ruby/setup-ruby][setup-ruby] |
-| 2 | Ruby <= 3.1 is not supported | [ruby/setup-ruby][setup-ruby] |
+| #   | Important                    | Alternative                   |
+| --- | ---------------------------- | ----------------------------- |
+| 1   | Windows is not supported     | [ruby/setup-ruby][setup-ruby] |
+| 2   | Ruby <= 3.1 is not supported | [ruby/setup-ruby][setup-ruby] |
 
 [setup-ruby]: https://github.com/ruby/setup-ruby
 
@@ -57,7 +57,7 @@ A _fast_ GitHub Action for fast Ruby environment setup using [rv](https://github
     <summary>Click to see historical background around why I built this</summary>
 
 | 📍 NOTE                                                                                                                                                                                                       |
-|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | RubyGems (the [GitHub org][rubygems-org], not the website) [suffered][draper-security] a [hostile takeover][ellen-takeover] in September 2025.                                                                |
 | Ultimately [4 maintainers][simi-removed] were [hard removed][martin-removed] and an reason has been given for only 1 of those, while 2 others resigned in protest.                                            |
 | It is a [complicated story][draper-takeover] which is difficult to [parse quickly][draper-lies].                                                                                                              |
@@ -98,7 +98,7 @@ A _fast_ GitHub Action for fast Ruby environment setup using [rv](https://github
 ```yaml
 - uses: appraisal-rb/setup-ruby-flash@v1
   with:
-    ruby-version: '3.4'
+    ruby-version: "3.4"
 ```
 
 ### With Gem Installation
@@ -106,7 +106,7 @@ A _fast_ GitHub Action for fast Ruby environment setup using [rv](https://github
 ```yaml
 - uses: appraisal-rb/setup-ruby-flash@v1
   with:
-    ruby-version: '3.4'
+    ruby-version: "3.4"
     ore-install: true
 ```
 
@@ -127,15 +127,17 @@ When `ruby-version` is set to `default` (the default), setup-ruby-flash reads fr
 ## Inputs
 
 | Input                  | Description                                                                                                                    | Default               |
-|------------------------|--------------------------------------------------------------------------------------------------------------------------------|-----------------------|
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------ | --------------------- |
 | `ruby-version`         | Ruby version to install (e.g., `3.4`, `3.4.1`). Use `ruby` for latest stable version, or `default` to read from version files. | `default`             |
 | `rubygems`             | RubyGems version: `default`, `latest`, or a version number (e.g., `3.5.0`)                                                     | `default`             |
 | `bundler`              | Bundler version: `Gemfile.lock`, `default`, `latest`, `none`, or a version number                                              | `Gemfile.lock`        |
 | `ore-install`          | Run `ore install` and cache gems                                                                                               | `false`               |
 | `working-directory`    | Directory for version files and Gemfile                                                                                        | `.`                   |
 | `cache-version`        | Cache version string for invalidation                                                                                          | `v1`                  |
-| `rv-version`           | Version of rv to install                                                                                                       | `latest`              |
-| `ore-version`          | Version of ore to install                                                                                                      | `latest`              |
+| `rv-version`           | Version of rv to install (ignored if `rv-git-ref` is set)                                                                      | `latest`              |
+| `rv-git-ref`           | Git branch, tag, or commit SHA to build rv from source                                                                         | `''`                  |
+| `ore-version`          | Version of ore to install (ignored if `ore-git-ref` is set)                                                                    | `latest`              |
+| `ore-git-ref`          | Git branch, tag, or commit SHA to build ore from source                                                                        | `''`                  |
 | `skip-extensions`      | Skip building native extensions                                                                                                | `false`               |
 | `without-groups`       | Gem groups to exclude (comma-separated)                                                                                        | `''`                  |
 | `ruby-install-retries` | Number of retry attempts for Ruby installation (with exponential backoff)                                                      | `3`                   |
@@ -144,7 +146,7 @@ When `ruby-version` is set to `default` (the default), setup-ruby-flash reads fr
 ## Outputs
 
 | Output             | Description                           |
-|--------------------|---------------------------------------|
+| ------------------ | ------------------------------------- |
 | `ruby-version`     | The installed Ruby version            |
 | `ruby-prefix`      | The path to the Ruby installation     |
 | `rv-version`       | The installed rv version              |
@@ -167,7 +169,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
-        ruby: ['3.2', '3.3', '3.4']
+        ruby: ["3.2", "3.3", "3.4"]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
@@ -183,9 +185,9 @@ jobs:
 ```yaml
 - uses: appraisal-rb/setup-ruby-flash@v1
   with:
-    ruby-version: '3.4'
+    ruby-version: "3.4"
     ore-install: true
-    without-groups: 'development,test'
+    without-groups: "development,test"
 ```
 
 ### Latest Ruby with Latest RubyGems and Bundler
@@ -204,8 +206,8 @@ jobs:
 ```yaml
 - uses: appraisal-rb/setup-ruby-flash@v1
   with:
-    ruby-version: '3.4'
-    rubygems: '3.5.0'
+    ruby-version: "3.4"
+    rubygems: "3.5.0"
     ore-install: true
 ```
 
@@ -214,7 +216,7 @@ jobs:
 ```yaml
 - uses: appraisal-rb/setup-ruby-flash@v1
   with:
-    ruby-version: '3.4'
+    ruby-version: "3.4"
     ore-install: true
     skip-extensions: true
 ```
@@ -224,9 +226,9 @@ jobs:
 ```yaml
 - uses: appraisal-rb/setup-ruby-flash@v1
   with:
-    ruby-version: '3.4'
+    ruby-version: "3.4"
     ore-install: true
-    working-directory: './my-app'
+    working-directory: "./my-app"
 ```
 
 ### Specific Tool Versions
@@ -234,9 +236,9 @@ jobs:
 ```yaml
 - uses: appraisal-rb/setup-ruby-flash@v1
   with:
-    ruby-version: '3.4.1'
-    rv-version: '0.4.0'
-    ore-version: '0.1.0'
+    ruby-version: "3.4.1"
+    rv-version: "0.4.0"
+    ore-version: "0.1.0"
     ore-install: true
 ```
 
@@ -247,9 +249,42 @@ If you experience intermittent failures due to GitHub API rate limiting, you can
 ```yaml
 - uses: appraisal-rb/setup-ruby-flash@v1
   with:
-    ruby-version: '3.4'
-    ruby-install-retries: '5'
+    ruby-version: "3.4"
+    ruby-install-retries: "5"
 ```
+
+### Building rv or ore from Source
+
+You can build rv or ore from a git branch, tag, or commit SHA instead of using a released version.
+This is useful for testing unreleased features or bug fixes. Required toolchains (Rust for rv, Go for ore)
+are automatically installed.
+
+```yaml
+# Test an ore feature branch
+- uses: appraisal-rb/setup-ruby-flash@v1
+  with:
+    ruby-version: "3.4"
+    ore-install: true
+    ore-git-ref: "feat/bundle-gemfile-support"
+
+# Test a pre-release rv tag
+- uses: appraisal-rb/setup-ruby-flash@v1
+  with:
+    ruby-version: "3.4"
+    rv-git-ref: "v0.5.0-beta1"
+
+# Test both from main branches
+- uses: appraisal-rb/setup-ruby-flash@v1
+  with:
+    ruby-version: "3.4"
+    rv-git-ref: "main"
+    ore-install: true
+    ore-git-ref: "main"
+```
+
+> **Note**: Building from source is slower on first run (~3-5 min for rv, ~1-2 min for ore) but cached for subsequent runs.
+> Use release versions for production CI workflows.
+> See [GIT_REF_FEATURE.md](GIT_REF_FEATURE.md) for comprehensive documentation.
 
 ## Migration from setup-ruby
 
@@ -259,14 +294,14 @@ setup-ruby-flash is designed to be a near drop-in replacement for `ruby/setup-ru
 # Before (setup-ruby)
 - uses: ruby/setup-ruby@v1
   with:
-    ruby-version: '3.4'
+    ruby-version: "3.4"
     bundler-cache: true
 - run: bundle exec rake test
 
 # After (setup-ruby-flash)
 - uses: appraisal-rb/setup-ruby-flash@v1
   with:
-    ruby-version: '3.4'
+    ruby-version: "3.4"
     ore-install: true
 - run: bundle exec rake test
 ```
@@ -291,18 +326,18 @@ setup-ruby-flash is designed to be a near drop-in replacement for `ruby/setup-ru
 
 ### Key Differences
 
-| Feature              | setup-ruby      | setup-ruby-flash  |
-|----------------------|-----------------|-------------------|
-| Ruby Install         | ~5 seconds      | < 2 seconds       |
-| Gem Install          | Bundler         | ore (~50% faster) |
-| `ruby-version: ruby` | ✅ latest stable | ✅ latest stable   |
-| `rubygems: latest`   | ✅               | ✅                 |
-| `bundler: latest`    | ✅               | ✅                 |
-| Windows              | ✅               | ❌                 |
-| Ruby < 3.2           | ✅               | ❌                 |
-| JRuby                | ✅               | ❌ (planned)       |
-| TruffleRuby          | ✅               | ❌ (planned)       |
-| Security Audit       | ❌               | ✅ (`ore audit`)   |
+| Feature              | setup-ruby       | setup-ruby-flash  |
+| -------------------- | ---------------- | ----------------- |
+| Ruby Install         | ~5 seconds       | < 2 seconds       |
+| Gem Install          | Bundler          | ore (~50% faster) |
+| `ruby-version: ruby` | ✅ latest stable | ✅ latest stable  |
+| `rubygems: latest`   | ✅               | ✅                |
+| `bundler: latest`    | ✅               | ✅                |
+| Windows              | ✅               | ❌                |
+| Ruby < 3.2           | ✅               | ❌                |
+| JRuby                | ✅               | ❌ (planned)      |
+| TruffleRuby          | ✅               | ❌ (planned)      |
+| Security Audit       | ❌               | ✅ (`ore audit`)  |
 
 ## About rv and ore
 
@@ -387,7 +422,7 @@ You may use the software for the benefit of your company if it meets all these c
 
 3.  received less than $1,000,000 total debt, equity, and other investment in the last five tax years, counting investment in predecessor companies that reorganized into, merged with, or spun out your company
 
-All dollar figures are United States dollars as of 2019.  Adjust them for inflation according to the United States Bureau of Labor Statistics' consumer price index for all urban consumers, United States city average, for all items, not seasonally adjusted, with 1982–1984=100 reference base.
+All dollar figures are United States dollars as of 2019. Adjust them for inflation according to the United States Bureau of Labor Statistics' consumer price index for all urban consumers, United States city average, for all items, not seasonally adjusted, with 1982–1984=100 reference base.
 
 ### Big Business
 
@@ -416,7 +451,7 @@ and [ore][ore] / [Contriboss](https://github.com/contriboss), as this project wo
 
 #### How to Request
 
-Request a fair commercial license by sending an email to [peter@9thbit.net](mailto:peter@9thbit.net) _and_ messaging the `#org-appraisal-rb` channel on the Official Discord 👉️ [![Live Chat on Discord][✉️discord-invite-img]][✉️discord-invite].  If both of your contact attempts fail to elicit a response within the time period allotted in [Big Business][big-business] the licensor will consider that equivalent to a fair commercial license under [Big Business][big-business].
+Request a fair commercial license by sending an email to [peter@9thbit.net](mailto:peter@9thbit.net) _and_ messaging the `#org-appraisal-rb` channel on the Official Discord 👉️ [![Live Chat on Discord][✉️discord-invite-img]][✉️discord-invite]. If both of your contact attempts fail to elicit a response within the time period allotted in [Big Business][big-business] the licensor will consider that equivalent to a fair commercial license under [Big Business][big-business].
 
 # 🤑 A request for help
 
