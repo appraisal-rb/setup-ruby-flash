@@ -1,10 +1,10 @@
-name: 'Setup Ruby with rv and ore'
-description: 'Fast Ruby environment setup using rv for Ruby installation and ore for gem management'
-author: 'appraisal-rb'
+name: "Setup Ruby with rv and ore"
+description: "Fast Ruby environment setup using rv for Ruby installation and ore for gem management"
+author: "appraisal-rb"
 
 branding:
-  icon: 'zap'
-  color: 'red'
+  icon: "zap"
+  color: "red"
 
 inputs:
   ruby-version:
@@ -13,7 +13,7 @@ inputs:
       Use 'ruby' for latest stable MRI Ruby version.
       Supported versions: 3.2, 3.3, 3.4, 4.0
     required: false
-    default: 'default'
+    default: "default"
 
   rubygems:
     description: |
@@ -22,7 +22,7 @@ inputs:
       For 'latest', `gem update --system` is run to update to the latest compatible RubyGems version.
       If a version number is given, `gem update --system <version>` is run to update to that version.
     required: false
-    default: 'default'
+    default: "default"
 
   bundler:
     description: |
@@ -32,59 +32,79 @@ inputs:
       For 'latest', installs the latest compatible Bundler version (Bundler 2 on Ruby 3.2+).
       For 'none', nothing is done.
     required: false
-    default: 'Gemfile.lock'
+    default: "Gemfile.lock"
 
   ore-install:
     description: |
       Run "ore install" to install gems and cache them automatically.
       Either 'true' or 'false'.
     required: false
-    default: 'false'
+    default: "false"
 
   working-directory:
     description: |
       Working directory for resolving version files (.ruby-version, etc.) and Gemfile.
     required: false
-    default: '.'
+    default: "."
 
   cache-version:
     description: |
       Cache version string. Change this to invalidate caches when needed.
     required: false
-    default: 'v1'
+    default: "v1"
 
   rv-version:
     description: |
       Version of rv to install. Either 'latest' or a specific version (e.g., '0.4.0').
+      Ignored if rv-git-ref is set.
     required: false
-    default: 'latest'
+    default: "latest"
+
+  rv-git-ref:
+    description: |
+      Git branch, tag, or commit SHA to build rv from source.
+      When set, rv will be built from the specified git ref instead of using a release.
+      Example: 'main', 'feat/new-feature', 'v0.5.0-beta'
+      Rust toolchain is automatically installed if needed.
+    required: false
+    default: ""
 
   ore-version:
     description: |
       Version of ore to install. Either 'latest' or a specific version (e.g., '0.1.0').
+      Ignored if ore-git-ref is set.
     required: false
-    default: 'latest'
+    default: "latest"
+
+  ore-git-ref:
+    description: |
+      Git branch, tag, or commit SHA to build ore from source.
+      When set, ore will be built from the specified git ref instead of using a release.
+      Example: 'main', 'feat/a-cool-feature', 'v0.19.0-alpha'
+      Go toolchain is automatically installed if needed.
+    required: false
+    default: ""
 
   skip-extensions:
     description: |
       Skip building native extensions during gem installation.
       Either 'true' or 'false'.
     required: false
-    default: 'false'
+    default: "false"
 
   without-groups:
     description: |
       Gem groups to exclude from installation (comma-separated).
       Example: 'development,test'
     required: false
-    default: ''
+    default: ""
 
   ruby-install-retries:
     description: |
       Number of retry attempts for Ruby installation if it fails (e.g., due to GitHub API rate limiting).
       Uses exponential backoff between retries.
     required: false
-    default: '3'
+    default: "3"
 
   token:
     description: |
@@ -95,35 +115,35 @@ inputs:
 
 outputs:
   ruby-version:
-    description: 'The installed Ruby version'
+    description: "The installed Ruby version"
     value: ${{ steps.setup.outputs.ruby-version }}
 
   ruby-prefix:
-    description: 'The prefix/path of the installed Ruby'
+    description: "The prefix/path of the installed Ruby"
     value: ${{ steps.setup.outputs.ruby-prefix }}
 
   rv-version:
-    description: 'The installed rv version'
+    description: "The installed rv version"
     value: ${{ steps.setup.outputs.rv-version }}
 
   rubygems-version:
-    description: 'The installed RubyGems version'
+    description: "The installed RubyGems version"
     value: ${{ steps.configure-rubygems.outputs.version || steps.setup.outputs.gem-version }}
 
   bundler-version:
-    description: 'The installed Bundler version'
+    description: "The installed Bundler version"
     value: ${{ steps.install-bundler.outputs.version || 'default' }}
 
   ore-version:
-    description: 'The installed ore version (if ore-install is true)'
+    description: "The installed ore version (if ore-install is true)"
     value: ${{ steps.setup.outputs.ore-version }}
 
   cache-hit:
-    description: 'Whether gems were restored from cache'
+    description: "Whether gems were restored from cache"
     value: ${{ steps.setup.outputs.cache-hit }}
 
 runs:
-  using: 'composite'
+  using: "composite"
   steps:
     - name: Validate platform
       id: platform
@@ -162,10 +182,17 @@ runs:
       env:
         GH_TOKEN: ${{ inputs.token }}
       run: |
-        if [ "${{ inputs.rv-version }}" = "latest" ]; then
+        # If git ref is specified, use it for cache key
+        if [ -n "${{ inputs.rv-git-ref }}" ]; then
+          VERSION="${{ inputs.rv-git-ref }}"
+          echo "build-from-source=true" >> $GITHUB_OUTPUT
+          echo "Using rv git ref: $VERSION (will build from source)"
+        elif [ "${{ inputs.rv-version }}" = "latest" ]; then
           VERSION=$(gh api repos/spinel-coop/rv/releases/latest --jq '.tag_name' 2>/dev/null || echo "v0.4.1")
+          echo "build-from-source=false" >> $GITHUB_OUTPUT
         else
           VERSION="${{ inputs.rv-version }}"
+          echo "build-from-source=false" >> $GITHUB_OUTPUT
         fi
         VERSION="${VERSION#v}"
         echo "version=$VERSION" >> $GITHUB_OUTPUT
@@ -176,10 +203,47 @@ runs:
       uses: actions/cache@v4
       with:
         path: ~/.local/bin/rv
-        key: setup-ruby-flash-rv-${{ steps.platform.outputs.platform }}-${{ steps.rv-version.outputs.version }}
+        key: setup-ruby-flash-rv-${{ steps.platform.outputs.platform }}-${{ steps.rv-version.outputs.version }}-${{ steps.rv-version.outputs.build-from-source }}
 
-    - name: Install rv
-      if: steps.cache-rv.outputs.cache-hit != 'true'
+    - name: Setup Rust toolchain for rv
+      if: steps.cache-rv.outputs.cache-hit != 'true' && steps.rv-version.outputs.build-from-source == 'true'
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Build rv from source
+      if: steps.cache-rv.outputs.cache-hit != 'true' && steps.rv-version.outputs.build-from-source == 'true'
+      shell: bash
+      run: |
+        GIT_REF="${{ inputs.rv-git-ref }}"
+        echo "Building rv from source (git ref: $GIT_REF)..."
+
+        # Clone rv repository (shallow clone for speed)
+        git clone --depth 1 https://github.com/spinel-coop/rv.git /tmp/rv-build
+        cd /tmp/rv-build
+        # Fetch the specific ref if shallow clone doesn't have it
+        if ! git checkout "$GIT_REF" 2>/dev/null; then
+          git fetch --depth 1 origin "$GIT_REF"
+          if ! git checkout FETCH_HEAD; then
+            echo "::error::Failed to checkout rv git ref: $GIT_REF"
+            exit 1
+          fi
+        fi
+
+        # Build rv using cargo
+        cargo build --release
+
+        # Install to ~/.local/bin
+        mkdir -p ~/.local/bin
+        cp target/release/rv ~/.local/bin/rv
+        chmod +x ~/.local/bin/rv
+
+        echo "Built and installed rv from $GIT_REF"
+        ~/.local/bin/rv --version
+
+        # Cleanup build directory
+        rm -rf /tmp/rv-build
+
+    - name: Install rv from release
+      if: steps.cache-rv.outputs.cache-hit != 'true' && steps.rv-version.outputs.build-from-source == 'false'
       shell: bash
       run: |
         VERSION="${{ steps.rv-version.outputs.version }}"
@@ -267,7 +331,7 @@ runs:
         fi
         mkdir -p "$RV_CACHE_DIR"
         CACHE_FILE="$RV_CACHE_DIR/available_rubies.json"
-        
+
         echo "Fetching Ruby releases list with authenticated API call..."
         RESPONSE=$(curl -fsSL \
           -H "Authorization: Bearer $GITHUB_TOKEN" \
@@ -275,7 +339,7 @@ runs:
           -H "User-Agent: rv-cli" \
           -D /tmp/headers.txt \
           "https://api.github.com/repos/spinel-coop/rv-ruby/releases/latest" 2>/dev/null) || true
-        
+
         if [ -n "$RESPONSE" ]; then
           # Extract ETag from headers - GitHub sends it with quotes like: etag: "abc123" or W/"abc123"
           RAW_ETAG=$(grep -i '^etag:' /tmp/headers.txt | tr -d '\r' | sed 's/^[eE][tT][aA][gG]: *//' || echo "")
@@ -326,16 +390,16 @@ runs:
       shell: bash
       run: |
         RUBY_VERSION="${{ steps.detect-ruby.outputs.version }}"
-        
+
         # Use rv to find the installed Ruby executable path
         RUBY_EXECUTABLE=$(~/.local/bin/rv ruby find "$RUBY_VERSION" 2>/dev/null)
-        
+
         if [ -z "$RUBY_EXECUTABLE" ]; then
           echo "::error::Could not find Ruby $RUBY_VERSION installation"
           ~/.local/bin/rv ruby list || true
           exit 1
         fi
-        
+
         # Get the bin directory from the executable path
         RUBY_BIN_DIR=$(dirname "$RUBY_EXECUTABLE")
         RUBY_PREFIX=$(dirname "$RUBY_BIN_DIR")
@@ -348,7 +412,7 @@ runs:
         export PATH="$RUBY_BIN_DIR:$PATH"
         FULL_RUBY_VERSION=$(ruby -e 'print RUBY_VERSION')
         GEM_VERSION=$(gem --version)
-        
+
         # Set outputs
         echo "ruby-version=$RUBY_VERSION" >> $GITHUB_OUTPUT
         echo "ruby-full-version=$FULL_RUBY_VERSION" >> $GITHUB_OUTPUT
@@ -395,13 +459,13 @@ runs:
       run: |
         BUNDLER_INPUT="${{ inputs.bundler }}"
         RUBY_VERSION="${{ steps.setup.outputs.ruby-full-version }}"
-        
+
         # Helper function to check if a specific bundler version is installed
         is_bundler_installed() {
           local version="$1"
           gem list bundler --installed --version "$version" >/dev/null 2>&1
         }
-        
+
         # Helper function to check if bundler satisfies a version requirement
         bundler_satisfies() {
           local required="$1"
@@ -416,13 +480,13 @@ runs:
             [ "$required" = "$current" ]
           fi
         }
-        
+
         # Get currently installed bundler version
         CURRENT_BUNDLER=$(bundle --version 2>/dev/null | awk '{print $NF}' || echo "")
         if [ -n "$CURRENT_BUNDLER" ]; then
           echo "Current Bundler version: $CURRENT_BUNDLER"
         fi
-        
+
         # Determine Bundler version to install
         if [ "$BUNDLER_INPUT" = "Gemfile.lock" ]; then
           if [ -f "Gemfile.lock" ]; then
@@ -445,7 +509,7 @@ runs:
             BUNDLER_INPUT="default"
           fi
         fi
-        
+
         if [ "$BUNDLER_INPUT" = "default" ]; then
           # Ruby 3.2+ ships with Bundler 2.2+, use it
           if [ -n "$CURRENT_BUNDLER" ]; then
@@ -455,7 +519,7 @@ runs:
           fi
           BUNDLER_INPUT="latest"
         fi
-        
+
         if [ "$BUNDLER_INPUT" = "latest" ]; then
           # Check if we already have a recent bundler
           if [ -n "$CURRENT_BUNDLER" ]; then
@@ -510,7 +574,7 @@ runs:
         if [ -z "$BUNDLER_VERSION" ]; then
           BUNDLER_VERSION=$(bundle --version 2>/dev/null | awk '{print $NF}' || echo "default")
         fi
-        
+
         echo "### setup-ruby-flash Summary ⚡" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "| Component | Value |" >> $GITHUB_STEP_SUMMARY
@@ -529,10 +593,17 @@ runs:
       env:
         GH_TOKEN: ${{ inputs.token }}
       run: |
-        if [ "${{ inputs.ore-version }}" = "latest" ]; then
+        # If git ref is specified, use it for cache key
+        if [ -n "${{ inputs.ore-git-ref }}" ]; then
+          VERSION="${{ inputs.ore-git-ref }}"
+          echo "build-from-source=true" >> $GITHUB_OUTPUT
+          echo "Using ore git ref: $VERSION (will build from source)"
+        elif [ "${{ inputs.ore-version }}" = "latest" ]; then
           VERSION=$(gh api repos/contriboss/ore-light/releases/latest --jq '.tag_name' 2>/dev/null || echo "v0.18.0")
+          echo "build-from-source=false" >> $GITHUB_OUTPUT
         else
           VERSION="${{ inputs.ore-version }}"
+          echo "build-from-source=false" >> $GITHUB_OUTPUT
         fi
         VERSION="${VERSION#v}"
         echo "version=$VERSION" >> $GITHUB_OUTPUT
@@ -544,10 +615,49 @@ runs:
       uses: actions/cache@v4
       with:
         path: ~/.local/bin/ore
-        key: setup-ruby-flash-ore-${{ steps.platform.outputs.platform }}-${{ steps.ore-version.outputs.version }}
+        key: setup-ruby-flash-ore-${{ steps.platform.outputs.platform }}-${{ steps.ore-version.outputs.version }}-${{ steps.ore-version.outputs.build-from-source }}
 
-    - name: Install ore
-      if: inputs.ore-install == 'true' && steps.cache-ore.outputs.cache-hit != 'true'
+    - name: Setup Go toolchain for ore
+      if: inputs.ore-install == 'true' && steps.cache-ore.outputs.cache-hit != 'true' && steps.ore-version.outputs.build-from-source == 'true'
+      uses: actions/setup-go@v5
+      with:
+        go-version: "stable"
+
+    - name: Build ore from source
+      if: inputs.ore-install == 'true' && steps.cache-ore.outputs.cache-hit != 'true' && steps.ore-version.outputs.build-from-source == 'true'
+      shell: bash
+      run: |
+        GIT_REF="${{ inputs.ore-git-ref }}"
+        echo "Building ore from source (git ref: $GIT_REF)..."
+
+        # Clone ore-light repository (shallow clone for speed)
+        git clone --depth 1 https://github.com/contriboss/ore-light.git /tmp/ore-build
+        cd /tmp/ore-build
+        # Fetch the specific ref if shallow clone doesn't have it
+        if ! git checkout "$GIT_REF" 2>/dev/null; then
+          git fetch --depth 1 origin "$GIT_REF"
+          if ! git checkout FETCH_HEAD; then
+            echo "::error::Failed to checkout ore git ref: $GIT_REF"
+            exit 1
+          fi
+        fi
+
+        # Build ore using Go
+        go build -o ore ./cmd/ore
+
+        # Install to ~/.local/bin
+        mkdir -p ~/.local/bin
+        cp ore ~/.local/bin/ore
+        chmod +x ~/.local/bin/ore
+
+        echo "Built and installed ore from $GIT_REF"
+        ~/.local/bin/ore --version
+
+        # Cleanup build directory
+        rm -rf /tmp/ore-build
+
+    - name: Install ore from release
+      if: inputs.ore-install == 'true' && steps.cache-ore.outputs.cache-hit != 'true' && steps.ore-version.outputs.build-from-source == 'false'
       shell: bash
       run: |
         VERSION="${{ steps.ore-version.outputs.version }}"
@@ -585,7 +695,6 @@ runs:
         key: ${{ steps.gem-cache-key.outputs.key }}
         restore-keys: ${{ steps.gem-cache-key.outputs.restore-keys }}
 
-
     - name: Install gems with ore
       if: inputs.ore-install == 'true'
       id: install-gems
@@ -599,12 +708,12 @@ runs:
       run: |
         # Ensure we're using the rv-installed Ruby
         export PATH="${{ steps.setup.outputs.ruby-prefix }}/bin:$PATH"
-        
+
         # Verify we're using the right Ruby
         echo "Using Ruby: $(which ruby)"
         echo "Ruby version: $(ruby --version)"
         echo "GEM_HOME: $GEM_HOME"
-        
+
         # Build ore install command
         INSTALL_CMD="ore install"
         if [ "${{ inputs.skip-extensions }}" = "true" ]; then
