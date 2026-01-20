@@ -530,7 +530,7 @@ runs:
         GH_TOKEN: ${{ inputs.token }}
       run: |
         if [ "${{ inputs.ore-version }}" = "latest" ]; then
-          VERSION=$(gh api repos/contriboss/ore-light/releases/latest --jq '.tag_name' 2>/dev/null || echo "v0.17.2")
+          VERSION=$(gh api repos/contriboss/ore-light/releases/latest --jq '.tag_name' 2>/dev/null || echo "v0.18.0")
         else
           VERSION="${{ inputs.ore-version }}"
         fi
