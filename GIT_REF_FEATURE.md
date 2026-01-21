@@ -14,12 +14,15 @@ setup-ruby-flash now supports building `rv` and `ore` from git branches, tags, o
 
 **Toolchain**: Rust toolchain is automatically installed if needed (via `dtolnay/rust-toolchain@stable`)
 
+**Fork Support**: Use `owner:ref` syntax to build from a fork (e.g., `pboling:feat/my-fix`)
+
 **Examples**:
 
 - `'main'` - Build from main branch
 - `'feat/new-feature'` - Build from feature branch
 - `'v0.5.0-beta'` - Build from pre-release tag
 - `'abc123'` - Build from specific commit
+- `'pboling:feat/github-token-authenticated-requests'` - Build from fork
 
 **Default**: `''` (empty - uses release binary)
 
@@ -33,12 +36,15 @@ setup-ruby-flash now supports building `rv` and `ore` from git branches, tags, o
 
 **Toolchain**: Go toolchain is automatically installed if needed (via `actions/setup-go@v5` with `stable`)
 
+**Fork Support**: Use `owner:ref` syntax to build from a fork (e.g., `yourname:feat/my-fix`)
+
 **Examples**:
 
 - `'main'` - Build from main branch
 - `'feat/bundle-gemfile-support'` - Build from feature branch
 - `'v0.19.0-alpha'` - Build from pre-release tag
 - `'def456'` - Build from specific commit
+- `'contriboss:feat/my-enhancement'` - Build from fork
 
 **Default**: `''` (empty - uses release binary)
 
@@ -148,6 +154,34 @@ jobs:
           ore-git-ref: "a1b2c3d4e5f6" # Specific commit SHA
 ```
 
+### Example 5: Test from Your Fork
+
+```yaml
+name: Test rv fork with auth fix
+
+on: [push, pull_request]
+
+jobs:
+  test-fork:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup with rv from fork
+        uses: appraisal-rb/setup-ruby-flash@v1
+        with:
+          ruby-version: "3.4"
+          rv-git-ref: "pboling:feat/github-token-authenticated-requests" # Build from fork
+
+      - name: Test with forked rv
+        env:
+          RUST_LOG: debug
+        run: |
+          rv --version
+          # Should show authentication being used
+          rv ruby install 3.4
+```
+
 ## How It Works
 
 ### Build Process Flow
@@ -156,33 +190,49 @@ jobs:
 
 1. **Cache Check**: Checks if binary for this git ref is cached
 2. **Rust Setup**: If not cached and `rv-git-ref` is set, installs Rust toolchain
-3. **Clone & Build**:
+3. **Parse Fork Syntax**: Checks if ref contains `:` to determine fork vs upstream
+4. **Clone & Build**:
 
    ```bash
+   # If fork syntax (owner:ref)
+   git clone --depth 1 https://github.com/owner/rv.git
+   git checkout ref  # fetches ref if needed
+   
+   # Otherwise (upstream)
    git clone --depth 1 https://github.com/spinel-coop/rv.git
-   git checkout <rv-git-ref>  # fetches ref if needed
+   git checkout ref  # fetches ref if needed
+   
+   # Build
    cargo build --release
    cp target/release/rv ~/.local/bin/rv
    rm -rf /tmp/rv-build  # cleanup
    ```
 
-4. **Cache Store**: Binary is cached for subsequent runs
+5. **Cache Store**: Binary is cached for subsequent runs
 
 #### For ore (Go)
 
 1. **Cache Check**: Checks if binary for this git ref is cached
 2. **Go Setup**: If not cached and `ore-git-ref` is set, installs Go (stable)
-3. **Clone & Build**:
+3. **Parse Fork Syntax**: Checks if ref contains `:` to determine fork vs upstream
+4. **Clone & Build**:
 
    ```bash
+   # If fork syntax (owner:ref)
+   git clone --depth 1 https://github.com/owner/ore-light.git
+   git checkout ref  # fetches ref if needed
+   
+   # Otherwise (upstream)
    git clone --depth 1 https://github.com/contriboss/ore-light.git
-   git checkout <ore-git-ref>  # fetches ref if needed
+   git checkout ref  # fetches ref if needed
+   
+   # Build
    go build -o ore ./cmd/ore
    cp ore ~/.local/bin/ore
    rm -rf /tmp/ore-build  # cleanup
    ```
 
-4. **Cache Store**: Binary is cached for subsequent runs
+5. **Cache Store**: Binary is cached for subsequent runs
 
 ### Caching Strategy
 

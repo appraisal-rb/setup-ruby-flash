@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require 'setup_rv'
+require 'setup_ruby_flash'
 
 RSpec.configure do |config|
   config.expect_with :rspec do |expectations|

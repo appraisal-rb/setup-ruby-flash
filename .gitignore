@@ -1,6 +1,6 @@
 # Bundler
 /.bundle/
-/vendor/bundle/
+/vendor/
 
 # RSpec
 /tmp/
@@ -18,8 +18,5 @@
 .DS_Store
 Thumbs.db
 
-# Keep vendor/rv, vendor/ore-light, vendor/setup-ruby (reference implementations)
-# but ignore any installed gems
-!/vendor/rv/
-!/vendor/ore-light/
-!/vendor/setup-ruby/
+# direnv - brew install direnv
+.env.local

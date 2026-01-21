@@ -13,12 +13,16 @@
 
 - You, possibly
 
-[![CI](https://github.com/appraisal-rb/setup-ruby-flash/actions/workflows/ci.yml/badge.svg)](https://github.com/appraisal-rb/setup-ruby-flash/actions/workflows/ci.yml) [![GitHub tag (latest SemVer)][⛳️tag-img]][⛳️tag] [![License: MIT][📄license-img]][📄license-ref]
+[![CI][ci-img]][ci] [![Runtime Heads][ci-r-heads-img]][ci-r-heads] [![GitHub tag (latest SemVer)][⛳️tag-img]][⛳️tag] [![License: MIT][📄license-img]][📄license-ref]
 
 [⛳️tag-img]: https://img.shields.io/github/tag/appraisal-rb/setup-ruby-flash.svg
 [⛳️tag]: http://github.com/appraisal-rb/setup-ruby-flash/releases
 [📄license-ref]: https://opensource.org/licenses/MIT
 [📄license-img]: https://img.shields.io/badge/License-MIT-259D6C.svg
+[ci]: https://github.com/appraisal-rb/setup-ruby-flash/actions/workflows/ci.yml
+[ci-img]: https://github.com/appraisal-rb/setup-ruby-flash/actions/workflows/ci.yml/badge.svg
+[ci-r-heads]: https://github.com/appraisal-rb/setup-ruby-flash/actions/workflows/runtime-heads.yml
+[ci-r-heads-img]: https://github.com/appraisal-rb/setup-ruby-flash/actions/workflows/runtime-heads.yml/badge.svg
 
 A _fast_ GitHub Action for fast Ruby environment setup using [rv](https://github.com/spinel-coop/rv) for Ruby installation and [ore](https://github.com/contriboss/ore-light) for gem management.
 

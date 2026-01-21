@@ -1,0 +1,60 @@
+name: CI - runtime-heads
+
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write
+
+on:
+  push:
+    branches:
+      - 'main'
+    tags:
+      - '!*' # Do not execute on tags
+  pull_request:
+    branches:
+      - '*'
+  # Allow manually triggering the workflow.
+  workflow_dispatch:
+
+# Cancels all previous workflow runs for the same branch that have not yet completed.
+concurrency:
+  # The concurrency group contains the workflow name and the branch name.
+  group: "${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: true
+
+jobs:
+  acceptance-tests:
+    name: Acceptance Tests (Ruby ${{ matrix.ruby }})
+    runs-on: ubuntu-latest
+    continue-on-error: ${{ matrix.experimental || endsWith(matrix.ruby, 'head') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        ruby: ['4.0']
+        experimental: [true]
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Run setup-ruby-flash action
+        uses: ./
+        with:
+          ruby-version: ${{ matrix.ruby }}
+          ore-install: true
+          cache-version: 'v2'
+          rv-git-ref: "main"
+          ore-git-ref: "master"
+
+      - name: Verify ore installation
+        run: |
+          echo "==> ore version:"
+          ore --version
+          echo "==> Installed gems:"
+          ore list
+          echo "==> ore check:"
+          ore check
+
+      - name: Run acceptance tests
+        env:
+          EXPECTED_RUBY_VERSION: ${{ matrix.ruby }}
+        run: bundle exec rspec spec/acceptance/

@@ -64,7 +64,8 @@ inputs:
     description: |
       Git branch, tag, or commit SHA to build rv from source.
       When set, rv will be built from the specified git ref instead of using a release.
-      Example: 'main', 'feat/new-feature', 'v0.5.0-beta'
+      Supports fork syntax: Use 'owner:ref' to build from a fork (e.g., 'pboling:feat/my-fix').
+      Examples: 'main', 'feat/new-feature', 'v0.5.0-beta', 'pboling:feat/github-token-authenticated-requests'
       Rust toolchain is automatically installed if needed.
     required: false
     default: ""
@@ -80,7 +81,8 @@ inputs:
     description: |
       Git branch, tag, or commit SHA to build ore from source.
       When set, ore will be built from the specified git ref instead of using a release.
-      Example: 'main', 'feat/a-cool-feature', 'v0.19.0-alpha'
+      Supports fork syntax: Use 'owner:ref' to build from a fork (e.g., 'yourname:feat/my-fix').
+      Examples: 'main', 'feat/a-cool-feature', 'v0.19.0-alpha', 'contriboss:feat/bundle-support'
       Go toolchain is automatically installed if needed.
     required: false
     default: ""
@@ -105,6 +107,16 @@ inputs:
       Uses exponential backoff between retries.
     required: false
     default: "3"
+
+  no-document:
+    description: |
+      Skip generating documentation for installed gems (ri/rdoc).
+      Either 'true' or 'false'. Speeds up gem installation significantly.
+      Applies to 'gem install' and 'gem update --system' commands.
+      Creates .gemrc (if it doesn't exist) to affect Bundler/ore gem installations.
+      Preserves existing .gemrc files without modification.
+    required: false
+    default: "true"
 
   token:
     description: |
@@ -216,14 +228,26 @@ runs:
         GIT_REF="${{ inputs.rv-git-ref }}"
         echo "Building rv from source (git ref: $GIT_REF)..."
 
-        # Clone rv repository (shallow clone for speed)
-        git clone --depth 1 https://github.com/spinel-coop/rv.git /tmp/rv-build
+        # Parse fork syntax: owner:ref or just ref
+        if [[ "$GIT_REF" == *":"* ]]; then
+          FORK_OWNER="${GIT_REF%%:*}"
+          REF="${GIT_REF#*:}"
+          REPO_URL="https://github.com/${FORK_OWNER}/rv.git"
+          echo "Using fork: $FORK_OWNER/rv (ref: $REF)"
+        else
+          REPO_URL="https://github.com/spinel-coop/rv.git"
+          REF="$GIT_REF"
+          echo "Using upstream: spinel-coop/rv (ref: $REF)"
+        fi
+
+        # Clone repository (shallow clone for speed)
+        git clone --depth 1 "$REPO_URL" /tmp/rv-build
         cd /tmp/rv-build
         # Fetch the specific ref if shallow clone doesn't have it
-        if ! git checkout "$GIT_REF" 2>/dev/null; then
-          git fetch --depth 1 origin "$GIT_REF"
+        if ! git checkout "$REF" 2>/dev/null; then
+          git fetch --depth 1 origin "$REF"
           if ! git checkout FETCH_HEAD; then
-            echo "::error::Failed to checkout rv git ref: $GIT_REF"
+            echo "::error::Failed to checkout rv git ref: $REF from $REPO_URL"
             exit 1
           fi
         fi
@@ -433,9 +457,15 @@ runs:
         CURRENT_VERSION=$(gem --version)
         echo "Current RubyGems version: $CURRENT_VERSION"
 
+        # Set silent flag when no-document is enabled
+        SILENT_FLAG=""
+        if [ "${{ inputs.no-document }}" = "true" ]; then
+          SILENT_FLAG="--silent"
+        fi
+
         if [ "$RUBYGEMS_INPUT" = "latest" ]; then
           echo "Updating RubyGems to latest version..."
-          gem update --system
+          gem update --system $SILENT_FLAG
           NEW_VERSION=$(gem --version)
           echo "Updated RubyGems to: $NEW_VERSION"
           echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
@@ -443,7 +473,7 @@ runs:
           # Check if requested version is newer than current
           if ruby -e "exit(Gem::Version.new('$RUBYGEMS_INPUT') > Gem::Version.new('$CURRENT_VERSION') ? 0 : 1)" 2>/dev/null; then
             echo "Updating RubyGems to version $RUBYGEMS_INPUT..."
-            gem update --system "$RUBYGEMS_INPUT"
+            gem update --system "$RUBYGEMS_INPUT" $SILENT_FLAG
             echo "version=$RUBYGEMS_INPUT" >> $GITHUB_OUTPUT
           else
             echo "Requested RubyGems version ($RUBYGEMS_INPUT) is not newer than current ($CURRENT_VERSION), skipping update"
@@ -459,6 +489,12 @@ runs:
       run: |
         BUNDLER_INPUT="${{ inputs.bundler }}"
         RUBY_VERSION="${{ steps.setup.outputs.ruby-full-version }}"
+
+        # Set documentation flag based on input
+        DOC_FLAG=""
+        if [ "${{ inputs.no-document }}" = "true" ]; then
+          DOC_FLAG="--no-document"
+        fi
 
         # Helper function to check if a specific bundler version is installed
         is_bundler_installed() {
@@ -521,6 +557,17 @@ runs:
         fi
 
         if [ "$BUNDLER_INPUT" = "latest" ]; then
+          # If RubyGems was updated to latest, it already installed the latest Bundler
+          # (RubyGems and Bundler are always released together)
+          if [ "${{ inputs.rubygems }}" = "latest" ] && [ -n "${{ steps.configure-rubygems.outputs.version }}" ]; then
+            CURRENT_BUNDLER=$(bundle --version 2>/dev/null | awk '{print $NF}' || echo "")
+            if [ -n "$CURRENT_BUNDLER" ]; then
+              echo "Using Bundler $CURRENT_BUNDLER (installed with latest RubyGems)"
+              echo "version=$CURRENT_BUNDLER" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+          fi
+
           # Check if we already have a recent bundler
           if [ -n "$CURRENT_BUNDLER" ]; then
             CURRENT_MAJOR="${CURRENT_BUNDLER%%.*}"
@@ -532,15 +579,15 @@ runs:
             fi
           fi
           echo "Installing latest Bundler..."
-          gem install bundler --no-document --force 2>/dev/null || gem install bundler --no-document
+          gem install bundler $DOC_FLAG --force 2>/dev/null || gem install bundler $DOC_FLAG
           INSTALLED_VERSION=$(bundle --version | awk '{print $NF}')
           echo "Installed Bundler: $INSTALLED_VERSION"
           echo "version=$INSTALLED_VERSION" >> $GITHUB_OUTPUT
         elif [ -n "$BUNDLER_VERSION" ]; then
           # Install specific version from Gemfile.lock
           echo "Installing Bundler version $BUNDLER_VERSION..."
-          gem install bundler -v "$BUNDLER_VERSION" --no-document --force 2>/dev/null || \
-            gem install bundler -v "$BUNDLER_VERSION" --no-document
+          gem install bundler -v "$BUNDLER_VERSION" $DOC_FLAG --force 2>/dev/null || \
+            gem install bundler -v "$BUNDLER_VERSION" $DOC_FLAG
           echo "version=$BUNDLER_VERSION" >> $GITHUB_OUTPUT
         elif [[ "$BUNDLER_INPUT" =~ ^[0-9] ]]; then
           # Version number provided - check if already satisfied
@@ -552,11 +599,11 @@ runs:
           echo "Installing Bundler version $BUNDLER_INPUT..."
           if [[ "$BUNDLER_INPUT" =~ ^[0-9]+$ ]]; then
             # Just major version, use ~> constraint
-            gem install bundler -v "~> $BUNDLER_INPUT.0" --no-document --force 2>/dev/null || \
-              gem install bundler -v "~> $BUNDLER_INPUT.0" --no-document
+            gem install bundler -v "~> $BUNDLER_INPUT.0" $DOC_FLAG --force 2>/dev/null || \
+              gem install bundler -v "~> $BUNDLER_INPUT.0" $DOC_FLAG
           else
-            gem install bundler -v "$BUNDLER_INPUT" --no-document --force 2>/dev/null || \
-              gem install bundler -v "$BUNDLER_INPUT" --no-document
+            gem install bundler -v "$BUNDLER_INPUT" $DOC_FLAG --force 2>/dev/null || \
+              gem install bundler -v "$BUNDLER_INPUT" $DOC_FLAG
           fi
           INSTALLED_VERSION=$(bundle --version | awk '{print $NF}')
           echo "version=$INSTALLED_VERSION" >> $GITHUB_OUTPUT
@@ -630,14 +677,26 @@ runs:
         GIT_REF="${{ inputs.ore-git-ref }}"
         echo "Building ore from source (git ref: $GIT_REF)..."
 
-        # Clone ore-light repository (shallow clone for speed)
-        git clone --depth 1 https://github.com/contriboss/ore-light.git /tmp/ore-build
+        # Parse fork syntax: owner:ref or just ref
+        if [[ "$GIT_REF" == *":"* ]]; then
+          FORK_OWNER="${GIT_REF%%:*}"
+          REF="${GIT_REF#*:}"
+          REPO_URL="https://github.com/${FORK_OWNER}/ore-light.git"
+          echo "Using fork: $FORK_OWNER/ore-light (ref: $REF)"
+        else
+          REPO_URL="https://github.com/contriboss/ore-light.git"
+          REF="$GIT_REF"
+          echo "Using upstream: contriboss/ore-light (ref: $REF)"
+        fi
+
+        # Clone repository (shallow clone for speed)
+        git clone --depth 1 "$REPO_URL" /tmp/ore-build
         cd /tmp/ore-build
         # Fetch the specific ref if shallow clone doesn't have it
-        if ! git checkout "$GIT_REF" 2>/dev/null; then
-          git fetch --depth 1 origin "$GIT_REF"
+        if ! git checkout "$REF" 2>/dev/null; then
+          git fetch --depth 1 origin "$REF"
           if ! git checkout FETCH_HEAD; then
-            echo "::error::Failed to checkout ore git ref: $GIT_REF"
+            echo "::error::Failed to checkout ore git ref: $REF from $REPO_URL"
             exit 1
           fi
         fi
@@ -713,6 +772,18 @@ runs:
         echo "Using Ruby: $(which ruby)"
         echo "Ruby version: $(ruby --version)"
         echo "GEM_HOME: $GEM_HOME"
+
+        # Configure .gemrc to skip documentation if requested
+        # This affects all gem installations including those done by Bundler/ore
+        # Only create .gemrc if it doesn't already exist (don't override user's settings)
+        if [ "${{ inputs.no-document }}" = "true" ]; then
+          if [ ! -f ~/.gemrc ]; then
+            echo "gem: --no-document" > ~/.gemrc
+            echo "Created .gemrc to skip documentation"
+          else
+            echo "Skipping .gemrc creation - file already exists (user settings preserved)"
+          fi
+        fi
 
         # Build ore install command
         INSTALL_CMD="ore install"
