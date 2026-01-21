@@ -112,6 +112,9 @@ inputs:
     description: |
       Skip generating documentation for installed gems (ri/rdoc).
       Either 'true' or 'false'. Speeds up gem installation significantly.
+      Applies to 'gem install' and 'gem update --system' commands.
+      Creates .gemrc (if it doesn't exist) to affect Bundler/ore gem installations.
+      Preserves existing .gemrc files without modification.
     required: false
     default: "true"
 
@@ -770,9 +773,16 @@ runs:
         echo "Ruby version: $(ruby --version)"
         echo "GEM_HOME: $GEM_HOME"
 
-        # Configure gem to skip documentation if requested
+        # Configure .gemrc to skip documentation if requested
+        # This affects all gem installations including those done by Bundler/ore
+        # Only create .gemrc if it doesn't already exist (don't override user's settings)
         if [ "${{ inputs.no-document }}" = "true" ]; then
-          bundle config set --local no-document true
+          if [ ! -f ~/.gemrc ]; then
+            echo "gem: --no-document" > ~/.gemrc
+            echo "Created .gemrc to skip documentation"
+          else
+            echo "Skipping .gemrc creation - file already exists (user settings preserved)"
+          fi
         fi
 
         # Build ore install command

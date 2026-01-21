@@ -19,8 +19,10 @@
 - **Documentation Control**: New `no-document` input to control gem documentation generation
   - Default: `true` (skip documentation for faster installs)
   - Set to `false` to generate ri/rdoc documentation
-  - Applies to both Bundler gem installations and ore gem installations
+  - Applies `--no-document` flag to `gem install` commands
   - Applies `--silent` flag to `gem update --system` commands when enabled
+  - Creates `.gemrc` with `gem: --no-document` for Bundler/ore gem installations (only if file doesn't exist)
+  - Preserves existing `.gemrc` files - will not overwrite user settings
   - Significantly speeds up gem installation by skipping ri/rdoc generation
 
 - **rv GitHub API Authentication**: rv now supports authenticated GitHub API requests
