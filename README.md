@@ -41,17 +41,29 @@ A _fast_ GitHub Action for fast Ruby environment setup using [rv](https://github
 - 🦊 **Forgejo [Actions](https://forgejo.org/docs/next/admin/actions/) support**
 - 🧊 **Codeberg [Actions](https://docs.codeberg.org/ci/actions/) support**
 - 🐙 **GitHub [Actions](https://github.com/marketplace/actions/setup-ruby-with-rv-and-ore) support**
+- 🔄 **Automatic fallback** to [ruby/setup-ruby][setup-ruby] for unsupported Ruby versions/implementations
 
 ## Requirements
 
 - **Operating Systems**: Ubuntu 22.04+, macOS 14+
 - **Architectures**: x86_64, ARM64
-- **Ruby Versions**: 3.2, 3.3, 3.4, 4.0
+- **Ruby Versions**: 3.2, 3.3, 3.4, 4.0 (MRI only)
 
-| #   | Important                    | Alternative                   |
-| --- | ---------------------------- | ----------------------------- |
-| 1   | Windows is not supported     | [ruby/setup-ruby][setup-ruby] |
-| 2   | Ruby <= 3.1 is not supported | [ruby/setup-ruby][setup-ruby] |
+### Automatic Fallback
+
+For unsupported configurations, setup-ruby-flash **automatically falls back** to [ruby/setup-ruby][setup-ruby]:
+
+- **Ruby versions < 3.2** (e.g., 2.7, 3.0, 3.1)
+- **Non-MRI implementations** (JRuby, TruffleRuby, etc.)
+- **Windows** (via platform detection)
+
+This means you can use setup-ruby-flash everywhere and get the best performance where available, with full compatibility as a fallback.
+
+| Ruby Version/Implementation | Behavior |
+| --- | --- |
+| Ruby 3.2, 3.3, 3.4, 4.0 (MRI) | ⚡ **Fast** - uses rv + ore |
+| Ruby 2.7, 3.0, 3.1 (MRI) | 🔄 **Fallback** - uses ruby/setup-ruby |
+| JRuby, TruffleRuby, etc. | 🔄 **Fallback** - uses ruby/setup-ruby |
 
 [setup-ruby]: https://github.com/ruby/setup-ruby
 
@@ -114,6 +126,17 @@ A _fast_ GitHub Action for fast Ruby environment setup using [rv](https://github
     ore-install: true
 ```
 
+### With Bundler Cache (ruby/setup-ruby compatible)
+
+For easy migration from ruby/setup-ruby, use `bundler-cache` (works the same as `ore-install`):
+
+```yaml
+- uses: appraisal-rb/setup-ruby-flash@v1
+  with:
+    ruby-version: "3.4"
+    bundler-cache: true
+```
+
 ### Using Version Files
 
 When `ruby-version` is set to `default` (the default), setup-ruby-flash reads from:
@@ -136,6 +159,7 @@ When `ruby-version` is set to `default` (the default), setup-ruby-flash reads fr
 | `rubygems`             | RubyGems version: `default`, `latest`, or a version number (e.g., `3.5.0`)                                                     | `default`             |
 | `bundler`              | Bundler version: `Gemfile.lock`, `default`, `latest`, `none`, or a version number                                              | `Gemfile.lock`        |
 | `ore-install`          | Run `ore install` and cache gems                                                                                               | `false`               |
+| `bundler-cache`        | Enable Bundler caching (alias for `ore-install` for compatibility with ruby/setup-ruby)                                        | `false`               |
 | `working-directory`    | Directory for version files and Gemfile                                                                                        | `.`                   |
 | `cache-version`        | Cache version string for invalidation                                                                                          | `v1`                  |
 | `rv-version`           | Version of rv to install (ignored if `rv-git-ref` is set)                                                                      | `latest`              |
@@ -271,6 +295,39 @@ Include documentation (ri/rdoc) for installed gems (default skips documentation 
     no-document: false
 ```
 
+### Matrix Testing Across Ruby Versions (with Automatic Fallback)
+
+Test across multiple Ruby versions, including older versions that automatically fall back to ruby/setup-ruby:
+
+```yaml
+jobs:
+  test:
+    strategy:
+      matrix:
+        ruby: ['2.7', '3.0', '3.1', '3.2', '3.3', '3.4']
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: appraisal-rb/setup-ruby-flash@v1
+        with:
+          ruby-version: ${{ matrix.ruby }}
+          bundler-cache: true
+      # Ruby 2.7, 3.0, 3.1 use ruby/setup-ruby (automatic fallback)
+      # Ruby 3.2, 3.3, 3.4 use rv + ore (fast path)
+      - run: bundle exec rake test
+```
+
+### Testing Non-MRI Implementations
+
+JRuby, TruffleRuby, and other implementations automatically fall back to ruby/setup-ruby:
+
+```yaml
+- uses: appraisal-rb/setup-ruby-flash@v1
+  with:
+    ruby-version: "jruby-9.4"  # Automatic fallback
+    bundler-cache: true
+```
+
 ### Building rv or ore from Source
 
 You can build rv or ore from a git branch, tag, or commit SHA instead of using a released version.
@@ -312,9 +369,15 @@ are automatically installed. Fork syntax (`pboling:feat/myexperiment`) is suppor
 > Use release versions for production CI workflows.
 > See [GIT_REF_FEATURE.md](GIT_REF_FEATURE.md) for comprehensive documentation.
 
+## Automatic Fallback
+
+For Ruby versions < 3.2 or non-MRI implementations (JRuby, TruffleRuby), setup-ruby-flash automatically falls back to ruby/setup-ruby. This enables true drop-in replacement behavior.
+
+See [FALLBACK_FEATURE.md](FALLBACK_FEATURE.md) for detailed documentation on the automatic fallback feature.
+
 ## Migration from setup-ruby
 
-setup-ruby-flash is designed to be a near drop-in replacement for `ruby/setup-ruby` on supported platforms:
+setup-ruby-flash is a true drop-in replacement for `ruby/setup-ruby`. Simply change the action name:
 
 ```yaml
 # Before (setup-ruby)
@@ -324,13 +387,23 @@ setup-ruby-flash is designed to be a near drop-in replacement for `ruby/setup-ru
     bundler-cache: true
 - run: bundle exec rake test
 
-# After (setup-ruby-flash)
+# After (setup-ruby-flash) - No other changes needed!
 - uses: appraisal-rb/setup-ruby-flash@v1
   with:
     ruby-version: "3.4"
-    ore-install: true
+    bundler-cache: true  # Works exactly the same
+- run: bundle exec rake test
+
+# Or use ore-install for the same behavior (with ore instead of bundler)
+- uses: appraisal-rb/setup-ruby-flash@v1
+  with:
+    ruby-version: "3.4"
+    ore-install: true  # Uses ore (faster gem installation)
 - run: bundle exec rake test
 ```
+
+**Note**: `bundler-cache` and `ore-install` are aliases - both enable gem caching and installation. Use whichever you prefer.
+
 
 ### With Latest RubyGems and Bundler
 

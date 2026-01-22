@@ -231,3 +231,36 @@ jobs:
           ore list
           echo "==> ore check:"
           ore check
+
+  # Test automatic fallback to ruby/setup-ruby
+  test-fallback:
+    name: Test Fallback (${{ matrix.ruby }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        ruby: ['3.1', 'jruby', 'truffleruby', '4.0', 'head']
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup Ruby (should use fallback)
+        uses: ./
+        with:
+          ruby-version: ${{ matrix.ruby }}
+          # alias of ore-install: true
+          bundler-cache: true
+          cache-version: 'v2'
+          # Need GH Token Authenticated requests, switch once the feature is released
+          rv-git-ref: 'main'
+          # Build both ore and gemfile-go from main
+          ore-git-ref: 'master'
+          gfgo-git-ref: 'master'
+
+      - name: Verify Ruby installation
+        run: |
+          echo "==> Ruby version:"
+          ruby --version
+          echo "==> Gem version:"
+          gem --version
+          echo "==> Bundler version:"
+          bundle --version

@@ -4,6 +4,21 @@
 
 ### Added
 
+- **bundler-cache Input**: New `bundler-cache` input for seamless compatibility with ruby/setup-ruby
+  - Acts as an alias for `ore-install` - both enable gem caching and installation
+  - Allows true drop-in replacement: just change action name, keep all inputs the same
+  - When using fallback to ruby/setup-ruby, `bundler-cache` is passed through directly
+  - Perfect for migrating from ruby/setup-ruby with zero workflow changes
+  - Can be used interchangeably with `ore-install` based on preference
+
+- **Automatic Fallback to ruby/setup-ruby**: setup-ruby-flash now automatically falls back to [ruby/setup-ruby](https://github.com/ruby/setup-ruby) for unsupported Ruby versions and implementations
+  - Automatically detects Ruby version < 3.2 (2.7, 3.0, 3.1, etc.) and uses ruby/setup-ruby
+  - Automatically detects non-MRI implementations (JRuby, TruffleRuby, etc.) and uses ruby/setup-ruby
+  - Enables true drop-in replacement behavior - use setup-ruby-flash everywhere, get best performance where available
+  - Shows informative notice when fallback occurs: `Ruby version 'X.X' is not supported by setup-ruby-flash (requires 3.2+). Falling back to ruby/setup-ruby.`
+  - All inputs are passed through to ruby/setup-ruby when using fallback
+  - Perfect for matrix builds that test across multiple Ruby versions (2.7 through 4.0)
+
 - **Build from Source Support**: New `rv-git-ref`, `ore-git-ref`, and `gfgo-git-ref` inputs allow building rv, ore, and gemfile-go from git branches, tags, or commits instead of using release binaries
   - `rv-git-ref`: Build rv from any git reference (requires Rust, automatically installed)
   - `ore-git-ref`: Build ore from any git reference (requires Go 1.24, automatically installed)
@@ -36,9 +51,17 @@
 
 ### Changed
 
+- **Version Detection Logic**: Changed from blacklist to allowlist approach for supported Ruby versions
+  - Now explicitly checks for Ruby 3.2, 3.3, 3.4, 4.0 (with or without patch versions)
+  - Ensures unsupported versions like `head`, `2.7`, etc. correctly fall back to ruby/setup-ruby
+  - More maintainable and explicit about which versions are supported
 - Cache keys now include `build-from-source` flag to prevent collision between git refs and release versions
 - Improved version resolution to handle both release versions and git references
 - **Bundler Installation Optimization**: Skip Bundler installation when `rubygems: latest` is used, as the latest RubyGems includes the latest Bundler (they are always released together)
+
+### Fixed
+
+- **Version Detection**: Ruby versions like `head`, `3.5`, and other unsupported versions now correctly fall back to ruby/setup-ruby instead of incorrectly attempting to use rv
 
 ### Notes
 

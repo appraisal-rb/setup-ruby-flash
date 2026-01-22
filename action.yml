@@ -41,6 +41,15 @@ inputs:
     required: false
     default: "false"
 
+  bundler-cache:
+    description: |
+      Enable Bundler caching (alias for ore-install for ruby/setup-ruby compatibility).
+      When true, acts the same as ore-install: true.
+      Either 'true' or 'false'.
+      Note: When using fallback to ruby/setup-ruby, this is passed through directly.
+    required: false
+    default: "false"
+
   working-directory:
     description: |
       Working directory for resolving version files (.ruby-version, etc.) and Gemfile.
@@ -166,7 +175,55 @@ outputs:
 runs:
   using: "composite"
   steps:
+    - name: Check Ruby version support
+      id: check-support
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        RUBY_VERSION="${{ inputs.ruby-version }}"
+        USE_FALLBACK="false"
+        
+        # Resolve version if 'default'
+        if [ "$RUBY_VERSION" = "default" ]; then
+          if [ -f ".ruby-version" ]; then
+            RUBY_VERSION=$(cat .ruby-version | head -1 | sed 's/^ruby-//' | tr -d '[:space:]')
+          elif [ -f ".tool-versions" ]; then
+            RUBY_VERSION=$(grep '^ruby ' .tool-versions | awk '{print $2}' | sed 's/^ruby-//')
+          elif [ -f "mise.toml" ]; then
+            RUBY_VERSION=$(grep 'ruby' mise.toml | sed 's/.*= *"\?\([^"]*\)"\?.*/\1/' | sed 's/^ruby-//')
+          fi
+        elif [ "$RUBY_VERSION" = "ruby" ]; then
+          RUBY_VERSION="4.0"
+        fi
+        
+        # Check if this is a non-MRI implementation (jruby, truffleruby, etc.)
+        if [[ "$RUBY_VERSION" =~ ^(jruby|truffleruby|rbx|ree|maglev|mruby|topaz) ]]; then
+          echo "::notice::Ruby implementation '$RUBY_VERSION' is not supported by setup-ruby-flash. Falling back to ruby/setup-ruby."
+          USE_FALLBACK="true"
+        # Allowlist: ONLY support MRI Ruby 3.2, 3.3, 3.4, 4.0 (with or without patch versions)
+        elif [[ "$RUBY_VERSION" =~ ^3\.2($|\.) ]] || [[ "$RUBY_VERSION" =~ ^3\.3($|\.) ]] || [[ "$RUBY_VERSION" =~ ^3\.4($|\.) ]] || [[ "$RUBY_VERSION" =~ ^4\.0($|\.) ]]; then
+          echo "Ruby version '$RUBY_VERSION' is supported by setup-ruby-flash."
+        else
+          echo "::notice::Ruby version '$RUBY_VERSION' is not supported by setup-ruby-flash (only 3.2, 3.3, 3.4, 4.0 supported). Falling back to ruby/setup-ruby."
+          USE_FALLBACK="true"
+        fi
+        
+        echo "use-fallback=$USE_FALLBACK" >> $GITHUB_OUTPUT
+        echo "ruby-version=$RUBY_VERSION" >> $GITHUB_OUTPUT
+
+    - name: Setup Ruby with ruby/setup-ruby (fallback)
+      if: steps.check-support.outputs.use-fallback == 'true'
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: ${{ inputs.ruby-version }}
+        rubygems: ${{ inputs.rubygems }}
+        bundler: ${{ inputs.bundler }}
+        bundler-cache: ${{ inputs.bundler-cache == 'true' || inputs.ore-install == 'true' }}
+        working-directory: ${{ inputs.working-directory }}
+        cache-version: ${{ inputs.cache-version }}
+
     - name: Validate platform
+      if: steps.check-support.outputs.use-fallback != 'true'
       id: platform
       shell: bash
       run: |
@@ -198,6 +255,7 @@ runs:
         echo "Detected platform: $OS-$ARCH"
 
     - name: Resolve rv version
+      if: steps.check-support.outputs.use-fallback != 'true'
       id: rv-version
       shell: bash
       env:
@@ -220,6 +278,7 @@ runs:
         echo "Resolved rv version: $VERSION"
 
     - name: Cache rv binary
+      if: steps.check-support.outputs.use-fallback != 'true'
       id: cache-rv
       uses: actions/cache@v4
       with:
@@ -227,11 +286,11 @@ runs:
         key: setup-ruby-flash-rv-${{ steps.platform.outputs.platform }}-${{ steps.rv-version.outputs.version }}-${{ steps.rv-version.outputs.build-from-source }}
 
     - name: Setup Rust toolchain for rv
-      if: steps.cache-rv.outputs.cache-hit != 'true' && steps.rv-version.outputs.build-from-source == 'true'
+      if: steps.check-support.outputs.use-fallback != 'true' && steps.cache-rv.outputs.cache-hit != 'true' && steps.rv-version.outputs.build-from-source == 'true'
       uses: dtolnay/rust-toolchain@stable
 
     - name: Build rv from source
-      if: steps.cache-rv.outputs.cache-hit != 'true' && steps.rv-version.outputs.build-from-source == 'true'
+      if: steps.check-support.outputs.use-fallback != 'true' && steps.cache-rv.outputs.cache-hit != 'true' && steps.rv-version.outputs.build-from-source == 'true'
       shell: bash
       run: |
         GIT_REF="${{ inputs.rv-git-ref }}"
@@ -276,7 +335,7 @@ runs:
         rm -rf /tmp/rv-build
 
     - name: Install rv from release
-      if: steps.cache-rv.outputs.cache-hit != 'true' && steps.rv-version.outputs.build-from-source == 'false'
+      if: steps.check-support.outputs.use-fallback != 'true' && steps.cache-rv.outputs.cache-hit != 'true' && steps.rv-version.outputs.build-from-source == 'false'
       shell: bash
       run: |
         VERSION="${{ steps.rv-version.outputs.version }}"
@@ -302,11 +361,13 @@ runs:
         echo "Installed rv $VERSION"
 
     - name: Add rv to PATH
+      if: steps.check-support.outputs.use-fallback != 'true'
       shell: bash
       run: |
         echo "$HOME/.local/bin" >> $GITHUB_PATH
 
     - name: Detect Ruby version
+      if: steps.check-support.outputs.use-fallback != 'true'
       id: detect-ruby
       shell: bash
       working-directory: ${{ inputs.working-directory }}
@@ -338,6 +399,7 @@ runs:
         echo "Using Ruby version: $RUBY_VERSION"
 
     - name: Cache Ruby installation
+      if: steps.check-support.outputs.use-fallback != 'true'
       id: cache-ruby
       uses: actions/cache@v4
       with:
@@ -345,7 +407,7 @@ runs:
         key: setup-ruby-flash-ruby-${{ inputs.cache-version }}-${{ steps.platform.outputs.platform }}-${{ steps.detect-ruby.outputs.version }}
 
     - name: Install Ruby
-      if: steps.cache-ruby.outputs.cache-hit != 'true'
+      if: steps.check-support.outputs.use-fallback != 'true' && steps.cache-ruby.outputs.cache-hit != 'true'
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.token }}
@@ -419,6 +481,7 @@ runs:
         exit 1
 
     - name: Configure Ruby environment
+      if: steps.check-support.outputs.use-fallback != 'true'
       id: setup
       shell: bash
       run: |
@@ -458,8 +521,8 @@ runs:
         gem --version
 
     - name: Configure RubyGems
+      if: steps.check-support.outputs.use-fallback != 'true' && inputs.rubygems != 'default'
       id: configure-rubygems
-      if: inputs.rubygems != 'default'
       shell: bash
       run: |
         RUBYGEMS_INPUT="${{ inputs.rubygems }}"
@@ -491,8 +554,8 @@ runs:
         fi
 
     - name: Install Bundler
+      if: steps.check-support.outputs.use-fallback != 'true' && inputs.bundler != 'none'
       id: install-bundler
-      if: inputs.bundler != 'none'
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       run: |
@@ -619,7 +682,7 @@ runs:
         fi
 
     - name: Generate summary (Ruby only)
-      if: inputs.ore-install != 'true'
+      if: steps.check-support.outputs.use-fallback != 'true' && inputs.ore-install != 'true' && inputs.bundler-cache != 'true'
       shell: bash
       run: |
         RUBYGEMS_VERSION="${{ steps.configure-rubygems.outputs.version }}"
@@ -643,7 +706,7 @@ runs:
         echo "| Ruby Cache Hit | ${{ steps.cache-ruby.outputs.cache-hit }} |" >> $GITHUB_STEP_SUMMARY
 
     - name: Resolve ore version
-      if: inputs.ore-install == 'true'
+      if: steps.check-support.outputs.use-fallback != 'true' && (inputs.ore-install == 'true' || inputs.bundler-cache == 'true')
       id: ore-version
       shell: bash
       env:
@@ -666,7 +729,7 @@ runs:
         echo "Resolved ore version: $VERSION"
 
     - name: Cache ore binary
-      if: inputs.ore-install == 'true'
+      if: steps.check-support.outputs.use-fallback != 'true' && (inputs.ore-install == 'true' || inputs.bundler-cache == 'true')
       id: cache-ore
       uses: actions/cache@v4
       with:
@@ -674,13 +737,13 @@ runs:
         key: setup-ruby-flash-ore-${{ steps.platform.outputs.platform }}-${{ steps.ore-version.outputs.version }}-${{ steps.ore-version.outputs.build-from-source }}-gfgo-${{ inputs.gfgo-git-ref }}
 
     - name: Setup Go toolchain for ore
-      if: inputs.ore-install == 'true' && steps.cache-ore.outputs.cache-hit != 'true' && steps.ore-version.outputs.build-from-source == 'true'
+      if: steps.check-support.outputs.use-fallback != 'true' && (inputs.ore-install == 'true' || inputs.bundler-cache == 'true') && steps.cache-ore.outputs.cache-hit != 'true' && steps.ore-version.outputs.build-from-source == 'true'
       uses: actions/setup-go@v5
       with:
         go-version: "stable"
 
     - name: Build ore from source
-      if: inputs.ore-install == 'true' && steps.cache-ore.outputs.cache-hit != 'true' && steps.ore-version.outputs.build-from-source == 'true'
+      if: steps.check-support.outputs.use-fallback != 'true' && (inputs.ore-install == 'true' || inputs.bundler-cache == 'true') && steps.cache-ore.outputs.cache-hit != 'true' && steps.ore-version.outputs.build-from-source == 'true'
       shell: bash
       run: |
         GIT_REF="${{ inputs.ore-git-ref }}"
@@ -770,7 +833,7 @@ runs:
         fi
 
     - name: Install ore from release
-      if: inputs.ore-install == 'true' && steps.cache-ore.outputs.cache-hit != 'true' && steps.ore-version.outputs.build-from-source == 'false'
+      if: steps.check-support.outputs.use-fallback != 'true' && (inputs.ore-install == 'true' || inputs.bundler-cache == 'true') && steps.cache-ore.outputs.cache-hit != 'true' && steps.ore-version.outputs.build-from-source == 'false'
       shell: bash
       run: |
         VERSION="${{ steps.ore-version.outputs.version }}"
@@ -779,7 +842,7 @@ runs:
         echo "Installed ore $VERSION"
 
     - name: Generate gem cache key
-      if: inputs.ore-install == 'true'
+      if: steps.check-support.outputs.use-fallback != 'true' && (inputs.ore-install == 'true' || inputs.bundler-cache == 'true')
       id: gem-cache-key
       shell: bash
       working-directory: ${{ inputs.working-directory }}
@@ -799,7 +862,7 @@ runs:
         echo "restore-keys=setup-ruby-flash-gems-${{ inputs.cache-version }}-${{ steps.platform.outputs.platform }}-ruby-${FULL_RUBY}-" >> $GITHUB_OUTPUT
 
     - name: Cache gems
-      if: inputs.ore-install == 'true'
+      if: steps.check-support.outputs.use-fallback != 'true' && (inputs.ore-install == 'true' || inputs.bundler-cache == 'true')
       id: cache-gems
       uses: actions/cache@v4
       with:
@@ -809,7 +872,7 @@ runs:
         restore-keys: ${{ steps.gem-cache-key.outputs.restore-keys }}
 
     - name: Install gems with ore
-      if: inputs.ore-install == 'true'
+      if: steps.check-support.outputs.use-fallback != 'true' && (inputs.ore-install == 'true' || inputs.bundler-cache == 'true')
       id: install-gems
       shell: bash
       working-directory: ${{ inputs.working-directory }}
