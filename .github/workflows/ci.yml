@@ -41,7 +41,11 @@ jobs:
         with:
           ruby-version: ${{ matrix.ruby }}
           cache-version: 'v2'
-          rv-git-ref: 'pboling:feat/github-token-authenticated-requests'
+          # Need GH Token Authenticated requests, switch once the feature is released
+          rv-git-ref: 'main'
+          # Build both ore and gemfile-go from main
+          ore-git-ref: 'master'
+          gfgo-git-ref: 'lock'
 
       - name: Verify Ruby installation
         run: |
@@ -54,8 +58,9 @@ jobs:
           echo "==> rv version:"
           rv --version
 
-  # Test the action with ore gem installation
-  test-action-with-ore:
+
+  # Test the action with ore gem installation (Pure Ruby)
+  test-action-with-ore-pure:
     name: Action + Ore Test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
@@ -64,10 +69,12 @@ jobs:
         os: [ubuntu-latest, macos-latest]
     steps:
       - uses: actions/checkout@v5
+        env:
+          BUNDLE_GEMFILE: TestGemfile
 
-      - name: Create test Gemfile
+      - name: Create test Gemfile (Pure Ruby)
         run: |
-          cat > Gemfile << 'EOF'
+          cat > ${{ env.BUNDLE_GEMFILE }} << 'EOF'
           source 'https://gem.coop'
           gem 'rake'
           EOF
@@ -78,7 +85,11 @@ jobs:
           ruby-version: '4.0'
           ore-install: true
           cache-version: 'v2'
-          rv-git-ref: 'pboling:feat/github-token-authenticated-requests'
+          # Need GH Token Authenticated requests, switch once the feature is released
+          rv-git-ref: 'main'
+          # Build both ore and gemfile-go from main
+          ore-git-ref: 'master'
+          gfgo-git-ref: 'lock'
 
       - name: Verify ore installation
         run: |
@@ -88,6 +99,49 @@ jobs:
           ore list
           echo "==> ore check:"
           ore check
+
+
+  # Test the action with ore gem installation (Compiled Extensions)
+  test-action-with-ore-compiled:
+    name: Action + Ore Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v5
+        env:
+          BUNDLE_GEMFILE: TestGemfile
+
+      - name: Create test Gemfile (Pure Ruby)
+        run: |
+          cat > ${{ env.BUNDLE_GEMFILE }} << 'EOF'
+          source 'https://gem.coop'
+          gem 'nokogiri'
+          EOF
+
+      - name: Run setup-ruby-flash with ore
+        uses: ./
+        with:
+          ruby-version: '4.0'
+          ore-install: true
+          cache-version: 'v2'
+          # Need GH Token Authenticated requests, switch once the feature is released
+          rv-git-ref: 'main'
+          # Build both ore and gemfile-go from main
+          ore-git-ref: 'master'
+          gfgo-git-ref: 'lock'
+
+      - name: Verify ore installation
+        run: |
+          echo "==> ore version:"
+          ore --version
+          echo "==> Installed gems:"
+          ore list
+          echo "==> ore check:"
+          ore check
+
 
   # Run acceptance tests (after action installs Ruby)
   acceptance-tests:
@@ -106,13 +160,16 @@ jobs:
           ruby-version: ${{ matrix.ruby }}
           ore-install: true
           cache-version: 'v2'
-          rv-git-ref: 'pboling:feat/github-token-authenticated-requests'
+          # Need GH Token Authenticated requests, switch once the feature is released
+          rv-git-ref: 'main'
+          # Build both ore and gemfile-go from main
+          ore-git-ref: 'master'
+          gfgo-git-ref: 'lock'
 
       - name: Run acceptance tests
         env:
           EXPECTED_RUBY_VERSION: ${{ matrix.ruby }}
         run: bundle exec rspec spec/acceptance/
-
   # Lint the Ruby code (acceptance tests, Rakefile, etc.)
   lint:
     name: RuboCop
@@ -126,7 +183,51 @@ jobs:
           ruby-version: '4.0'
           ore-install: true
           cache-version: 'v2'
-          rv-git-ref: 'pboling:feat/github-token-authenticated-requests'
+          # Need GH Token Authenticated requests, switch once the feature is released
+          rv-git-ref: 'main'
+          # Build both ore and gemfile-go from main
+          ore-git-ref: 'master'
+          gfgo-git-ref: 'lock'
 
       - name: Run RuboCop
         run: bundle exec rubocop
+  # Test gfgo-git-ref feature (build ore with gemfile-go from source)
+  test-gfgo-git-ref:
+    name: Test gfgo-git-ref (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v5
+        env:
+          BUNDLE_GEMFILE: TestGemfile
+
+      - name: Create test Gemfile
+        run: |
+          cat > ${{ env.BUNDLE_GEMFILE }} << 'EOF'
+          source 'https://gem.coop'
+          gem 'rake'
+          EOF
+
+      - name: Run setup-ruby-flash with ore and gemfile-go from source
+        uses: ./
+        with:
+          ruby-version: '4.0'
+          ore-install: true
+          cache-version: 'v2'
+          # Need GH Token Authenticated requests, switch once the feature is released
+          rv-git-ref: 'main'
+          # Build both ore and gemfile-go from main
+          ore-git-ref: 'master'
+          gfgo-git-ref: 'lock'
+
+      - name: Verify ore installation
+        run: |
+          echo "==> ore version:"
+          ore --version
+          echo "==> Installed gems:"
+          ore list
+          echo "==> ore check:"
+          ore check

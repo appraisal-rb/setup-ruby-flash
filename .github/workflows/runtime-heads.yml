@@ -42,8 +42,11 @@ jobs:
           ruby-version: ${{ matrix.ruby }}
           ore-install: true
           cache-version: 'v2'
-          rv-git-ref: 'pboling:feat/github-token-authenticated-requests'
-          ore-git-ref: "master"
+          # Need GH Token Authenticated requests, switch once the feature is released
+          rv-git-ref: 'main'
+          # Build both ore and gemfile-go from main
+          ore-git-ref: 'master'
+          gfgo-git-ref: 'lock'
 
       - name: Verify ore installation
         run: |

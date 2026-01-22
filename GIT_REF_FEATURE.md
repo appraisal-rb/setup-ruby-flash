@@ -1,8 +1,8 @@
-# Building rv and ore from Source - Feature Documentation
+# Building rv, ore, and gemfile-go from Source - Feature Documentation
 
 ## Overview
 
-setup-ruby-flash now supports building `rv` and `ore` from git branches, tags, or commits instead of using released binaries. This enables testing unreleased versions without creating formal releases.
+setup-ruby-flash now supports building `rv`, `ore`, and `gemfile-go` from git branches, tags, or commits instead of using released binaries. This enables testing unreleased versions without creating formal releases.
 
 ## New Inputs
 
@@ -49,6 +49,30 @@ setup-ruby-flash now supports building `rv` and `ore` from git branches, tags, o
 **Default**: `''` (empty - uses release binary)
 
 **Overrides**: When set, `ore-version` input is ignored
+
+### `gfgo-git-ref`
+
+**Description**: Git branch, tag, or commit SHA to build gemfile-go from source when building ore from source.
+
+**When set**: gemfile-go will be checked out and used via a Go workspace (`go.work`) when building ore. Only takes effect when `ore-git-ref` is also set.
+
+**Toolchain**: Uses the same Go toolchain as ore (no additional setup needed)
+
+**Fork Support**: Use `owner:ref` syntax to build from a fork (e.g., `yourname:feat/my-fix`)
+
+**Examples**:
+
+- `'main'` - Build from main branch
+- `'feat/new-parser'` - Build from feature branch
+- `'v1.2.3'` - Build from pre-release tag
+- `'xyz789'` - Build from specific commit
+- `'contriboss:feat/performance'` - Build from fork
+
+**Default**: `''` (empty - uses gemfile-go version specified in ore's go.mod)
+
+**Requirements**: Must be used with `ore-git-ref` (ignored if `ore-git-ref` is not set)
+
+**How it works**: Creates a `go.work` file in the ore build directory that references the local gemfile-go checkout, allowing ore to use the specified gemfile-go version without modifying go.mod or go.sum
 
 ## Usage Examples
 
@@ -133,6 +157,38 @@ jobs:
           ruby --version
 ```
 
+### Example 3a: Test ore and gemfile-go from Source
+
+```yaml
+name: Test unreleased ore with gemfile-go
+
+on: [workflow_dispatch]
+
+jobs:
+  test-ore-with-gfgo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup with unreleased ore and gemfile-go
+        uses: appraisal-rb/setup-ruby-flash@v1
+        with:
+          ruby-version: "3.4"
+          ore-install: true
+          ore-git-ref: "feat/new-feature" # Test feature branch of ore
+          gfgo-git-ref: "feat/parser-update" # Test feature branch of gemfile-go
+
+      - name: Verify installations
+        run: |
+          ore --version
+          ruby --version
+          
+      - name: Test gem installation
+        run: |
+          ore install
+          ore list
+```
+
 ### Example 4: Test Specific Commit
 
 ```yaml
@@ -212,10 +268,10 @@ jobs:
 
 #### For ore (Go)
 
-1. **Cache Check**: Checks if binary for this git ref is cached
+1. **Cache Check**: Checks if binary for this git ref and gfgo-git-ref is cached
 2. **Go Setup**: If not cached and `ore-git-ref` is set, installs Go (stable)
 3. **Parse Fork Syntax**: Checks if ref contains `:` to determine fork vs upstream
-4. **Clone & Build**:
+4. **Clone & Build ore**:
 
    ```bash
    # If fork syntax (owner:ref)
@@ -225,21 +281,47 @@ jobs:
    # Otherwise (upstream)
    git clone --depth 1 https://github.com/contriboss/ore-light.git
    git checkout ref  # fetches ref if needed
-   
-   # Build
-   go build -o ore ./cmd/ore
-   cp ore ~/.local/bin/ore
-   rm -rf /tmp/ore-build  # cleanup
    ```
 
-5. **Cache Store**: Binary is cached for subsequent runs
+5. **Optional: Clone & Setup gemfile-go** (if `gfgo-git-ref` is set):
+
+   ```bash
+   # Clone gemfile-go with fork syntax support
+   git clone --depth 1 https://github.com/owner/gemfile-go.git
+   git checkout ref  # fetches ref if needed
+   
+   # Create go.work in ore build directory
+   cd /tmp/ore-build
+   go work init .
+   go work use /tmp/gemfile-go-build
+   ```
+
+6. **Build ore**:
+
+   ```bash
+   # Build (automatically uses go.work if present)
+   go build -o ore ./cmd/ore
+   cp ore ~/.local/bin/ore
+   rm -rf /tmp/ore-build /tmp/gemfile-go-build  # cleanup
+   ```
+
+7. **Cache Store**: Binary is cached for subsequent runs
+
+#### Why go.work for gemfile-go?
+
+The `go.work` approach is cleaner than using `replace` directives in `go.mod`:
+
+- **No modification of go.mod/go.sum**: Avoids risk of accidentally committing development changes
+- **Automatic detection**: Go commands automatically use `go.work` if present
+- **Multi-repo development**: Industry standard for working with local checkouts
+- **Clean separation**: Development setup doesn't interfere with production builds
 
 ### Caching Strategy
 
 **Cache Key Format**:
 
 - rv: `setup-ruby-flash-rv-<platform>-<git-ref>-true`
-- ore: `setup-ruby-flash-ore-<platform>-<git-ref>-true`
+- ore: `setup-ruby-flash-ore-<platform>-<git-ref>-true-gfgo-<gfgo-git-ref>`
 
 **Benefits**:
 
@@ -250,8 +332,46 @@ jobs:
 **Example Cache Keys**:
 
 - `setup-ruby-flash-rv-linux-amd64-main-true`
-- `setup-ruby-flash-ore-darwin-arm64-feat/bundle-gemfile-support-true`
+- `setup-ruby-flash-ore-darwin-arm64-feat/bundle-gemfile-support-true-gfgo-`
+- `setup-ruby-flash-ore-linux-amd64-main-true-gfgo-feat/parser-update`
 - `setup-ruby-flash-rv-linux-arm64-v0.5.0-beta-true`
+
+## Local Development with gemfile-go
+
+If you're developing on ore-light locally and want to test with a local gemfile-go checkout, you can create a `go.work` file in your ore-light directory:
+
+### Setup (One-time)
+
+```bash
+# Assuming ore-light and gemfile-go are sibling directories
+cd /path/to/ore-light
+
+# Create go.work workspace
+go work init .
+go work use ../gemfile-go
+
+# Add to .gitignore (if not already there)
+echo "go.work" >> .gitignore
+echo "go.work.sum" >> .gitignore
+```
+
+### Benefits
+
+- **No go.mod changes**: Your go.mod and go.sum stay clean
+- **Easy switching**: Delete go.work to go back to released version
+- **Team friendly**: Can commit a minimal go.work if team uses standard layout
+- **CI compatible**: Same approach works in GitHub Actions
+
+### In CI (Automated)
+
+The action handles this automatically when you set both `ore-git-ref` and `gfgo-git-ref`:
+
+```yaml
+- uses: appraisal-rb/setup-ruby-flash@v1
+  with:
+    ore-git-ref: "main"
+    gfgo-git-ref: "main"  # Creates go.work automatically
+```
 
 ## Performance Considerations
 

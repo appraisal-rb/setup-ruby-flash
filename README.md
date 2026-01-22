@@ -142,6 +142,7 @@ When `ruby-version` is set to `default` (the default), setup-ruby-flash reads fr
 | `rv-git-ref`           | Git branch, tag, or commit SHA to build rv from source                                                                         | `''`                  |
 | `ore-version`          | Version of ore to install (ignored if `ore-git-ref` is set)                                                                    | `latest`              |
 | `ore-git-ref`          | Git branch, tag, or commit SHA to build ore from source                                                                        | `''`                  |
+| `gfgo-git-ref`         | Git branch, tag, or commit SHA to build gemfile-go from source (requires `ore-git-ref`)                                        | `''`                  |
 | `skip-extensions`      | Skip building native extensions                                                                                                | `false`               |
 | `without-groups`       | Gem groups to exclude (comma-separated)                                                                                        | `''`                  |
 | `ruby-install-retries` | Number of retry attempts for Ruby installation (with exponential backoff)                                                      | `3`                   |
@@ -297,6 +298,14 @@ are automatically installed. Fork syntax (`pboling:feat/myexperiment`) is suppor
     rv-git-ref: "main"
     ore-install: true
     ore-git-ref: "main"
+
+# Test ore and gemfile-go feature branches together
+- uses: appraisal-rb/setup-ruby-flash@v1
+  with:
+    ruby-version: "3.4"
+    ore-install: true
+    ore-git-ref: "feat/new-feature"
+    gfgo-git-ref: "feat/parser-update"
 ```
 
 > **Note**: Building from source is slower on first run (~3-5 min for rv, ~1-2 min for ore) but cached for subsequent runs.
@@ -385,6 +394,27 @@ rake lint
 # Run all checks
 rake ci
 ```
+
+### Developing with Local gemfile-go
+
+If you're working on ore-light and need to test with a local gemfile-go checkout, you can use Go workspaces:
+
+```bash
+# Assuming you have both repos checked out as siblings:
+# /path/to/ore-light
+# /path/to/gemfile-go
+
+cd /path/to/ore-light
+
+# Create a Go workspace
+go work init .
+go work use ../gemfile-go
+
+# Now build ore - it will use your local gemfile-go
+go build -o ore ./cmd/ore
+```
+
+The `go.work` file is in `.gitignore`, so it won't be accidentally committed. This is the cleanest way to develop with local dependencies in Go, and it's the same approach the action uses when you set `gfgo-git-ref`.
 
 ## Contributing
 

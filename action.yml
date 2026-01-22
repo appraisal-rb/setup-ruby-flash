@@ -87,6 +87,15 @@ inputs:
     required: false
     default: ""
 
+  gfgo-git-ref:
+    description: |
+      Git branch, tag, or commit SHA to build gemfile-go from source when building ore from source.
+      Only takes effect when ore-git-ref is also set. Creates a go.work workspace to use local gemfile-go.
+      Supports fork syntax: Use 'owner:ref' to build from a fork (e.g., 'yourname:feat/my-fix').
+      Examples: 'main', 'feat/new-feature', 'v1.2.3', 'contriboss:feat/enhancement'
+    required: false
+    default: ""
+
   skip-extensions:
     description: |
       Skip building native extensions during gem installation.
@@ -662,7 +671,7 @@ runs:
       uses: actions/cache@v4
       with:
         path: ~/.local/bin/ore
-        key: setup-ruby-flash-ore-${{ steps.platform.outputs.platform }}-${{ steps.ore-version.outputs.version }}-${{ steps.ore-version.outputs.build-from-source }}
+        key: setup-ruby-flash-ore-${{ steps.platform.outputs.platform }}-${{ steps.ore-version.outputs.version }}-${{ steps.ore-version.outputs.build-from-source }}-gfgo-${{ inputs.gfgo-git-ref }}
 
     - name: Setup Go toolchain for ore
       if: inputs.ore-install == 'true' && steps.cache-ore.outputs.cache-hit != 'true' && steps.ore-version.outputs.build-from-source == 'true'
@@ -675,6 +684,7 @@ runs:
       shell: bash
       run: |
         GIT_REF="${{ inputs.ore-git-ref }}"
+        GFGO_GIT_REF="${{ inputs.gfgo-git-ref }}"
         echo "Building ore from source (git ref: $GIT_REF)..."
 
         # Parse fork syntax: owner:ref or just ref
@@ -689,7 +699,7 @@ runs:
           echo "Using upstream: contriboss/ore-light (ref: $REF)"
         fi
 
-        # Clone repository (shallow clone for speed)
+        # Clone ore repository (shallow clone for speed)
         git clone --depth 1 "$REPO_URL" /tmp/ore-build
         cd /tmp/ore-build
         # Fetch the specific ref if shallow clone doesn't have it
@@ -701,7 +711,45 @@ runs:
           fi
         fi
 
-        # Build ore using Go
+        # If gfgo-git-ref is set, checkout gemfile-go and create go.work
+        if [[ -n "$GFGO_GIT_REF" ]]; then
+          echo "Building with gemfile-go from source (git ref: $GFGO_GIT_REF)..."
+          
+          # Parse gemfile-go fork syntax
+          if [[ "$GFGO_GIT_REF" == *":"* ]]; then
+            GFGO_FORK_OWNER="${GFGO_GIT_REF%%:*}"
+            GFGO_REF="${GFGO_GIT_REF#*:}"
+            GFGO_REPO_URL="https://github.com/${GFGO_FORK_OWNER}/gemfile-go.git"
+            echo "Using fork: $GFGO_FORK_OWNER/gemfile-go (ref: $GFGO_REF)"
+          else
+            GFGO_REPO_URL="https://github.com/contriboss/gemfile-go.git"
+            GFGO_REF="$GFGO_GIT_REF"
+            echo "Using upstream: contriboss/gemfile-go (ref: $GFGO_REF)"
+          fi
+
+          # Clone gemfile-go repository
+          git clone --depth 1 "$GFGO_REPO_URL" /tmp/gemfile-go-build
+          cd /tmp/gemfile-go-build
+          # Fetch the specific ref if shallow clone doesn't have it
+          if ! git checkout "$GFGO_REF" 2>/dev/null; then
+            git fetch --depth 1 origin "$GFGO_REF"
+            if ! git checkout FETCH_HEAD; then
+              echo "::error::Failed to checkout gemfile-go git ref: $GFGO_REF from $GFGO_REPO_URL"
+              exit 1
+            fi
+          fi
+
+          # Create go.work in ore-build directory
+          cd /tmp/ore-build
+          echo "Creating go.work workspace..."
+          go work init .
+          go work use /tmp/gemfile-go-build
+          echo "go.work created successfully"
+          cat go.work
+        fi
+
+        # Build ore using Go (will use go.work if it exists)
+        cd /tmp/ore-build
         go build -o ore ./cmd/ore
 
         # Install to ~/.local/bin
@@ -710,10 +758,16 @@ runs:
         chmod +x ~/.local/bin/ore
 
         echo "Built and installed ore from $GIT_REF"
+        if [[ -n "$GFGO_GIT_REF" ]]; then
+          echo "  with gemfile-go from $GFGO_GIT_REF"
+        fi
         ~/.local/bin/ore --version
 
-        # Cleanup build directory
+        # Cleanup build directories
         rm -rf /tmp/ore-build
+        if [[ -n "$GFGO_GIT_REF" ]]; then
+          rm -rf /tmp/gemfile-go-build
+        fi
 
     - name: Install ore from release
       if: inputs.ore-install == 'true' && steps.cache-ore.outputs.cache-hit != 'true' && steps.ore-version.outputs.build-from-source == 'false'

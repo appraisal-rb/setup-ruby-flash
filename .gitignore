@@ -20,3 +20,7 @@ Thumbs.db
 
 # direnv - brew install direnv
 .env.local
+
+# Go workspace (optional for local development with gemfile-go)
+go.work
+go.work.sum

@@ -4,16 +4,18 @@
 
 ### Added
 
-- **Build from Source Support**: New `rv-git-ref` and `ore-git-ref` inputs allow building rv and ore from git branches, tags, or commits instead of using release binaries
+- **Build from Source Support**: New `rv-git-ref`, `ore-git-ref`, and `gfgo-git-ref` inputs allow building rv, ore, and gemfile-go from git branches, tags, or commits instead of using release binaries
   - `rv-git-ref`: Build rv from any git reference (requires Rust, automatically installed)
   - `ore-git-ref`: Build ore from any git reference (requires Go 1.24, automatically installed)
+  - `gfgo-git-ref`: Build gemfile-go from any git reference when building ore from source (requires `ore-git-ref`)
   - **Fork Support**: Use `owner:ref` syntax to build from a fork (e.g., `pboling:feat/github-token-authenticated-requests`)
+  - **Go Workspace**: Uses `go.work` for gemfile-go integration - clean approach without modifying `go.mod`
   - Enables testing unreleased versions without creating formal releases
   - Supports branches (`main`), tags (`v0.5.0-beta`), commit SHAs, and forks (`owner:branch`)
   - Built binaries are cached by git ref for fast subsequent runs
   - When git ref is set, corresponding version input (`rv-version`, `ore-version`) is ignored
   - **Use Case**: Test PRs, feature branches, bug fixes, and fork changes before release
-  - **Performance**: First build 3-5 min (rv) or 1-2 min (ore); cached builds ~1-2 sec
+  - **Performance**: First build 3-5 min (rv), 1-2 min (ore), 2-3 min (ore+gemfile-go); cached builds ~1-2 sec
   - See `GIT_REF_FEATURE.md` for comprehensive documentation and examples
 
 - **Documentation Control**: New `no-document` input to control gem documentation generation
