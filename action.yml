@@ -268,7 +268,8 @@ runs:
           # If not found in special versions, check numeric versions
           if [ "$USE_FALLBACK" = "true" ]; then
             # Extract major.minor version (e.g., "3.4.1" -> "3.4")
-            VERSION_PREFIX=$(echo "$RUBY_VERSION" | grep -oE '^[0-9]+\.[0-9]+')
+            # Use || true to prevent exit on no match
+            VERSION_PREFIX=$(echo "$RUBY_VERSION" | grep -oE '^[0-9]+\.[0-9]+' || true)
             
             if [ -n "$VERSION_PREFIX" ]; then
               for allowed_version in $SUPPORTED_NUMERIC_VERSIONS; do
