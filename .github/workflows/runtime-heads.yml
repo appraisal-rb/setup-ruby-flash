@@ -45,7 +45,7 @@ jobs:
           # Need GH Token Authenticated requests, switch once the feature is released
           rv-git-ref: 'main'
           # Build both ore and gemfile-go from main
-          ore-git-ref: 'master'
+          ore-git-ref: 'locki'
           gfgo-git-ref: 'master'
 
       - name: Verify ore installation
