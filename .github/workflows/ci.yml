@@ -61,7 +61,7 @@ jobs:
 
   # Test the action with ore gem installation (Pure Ruby)
   test-action-with-ore-pure:
-    name: Action + Ore Test (${{ matrix.os }})
+    name: Action + Ore Test Pure Ruby Gems (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     env:
       BUNDLE_GEMFILE: TestGemfile
@@ -105,7 +105,7 @@ jobs:
 
   # Test the action with ore gem installation (Compiled Extensions)
   test-action-with-ore-compiled:
-    name: Action + Ore Test (${{ matrix.os }})
+    name: Action + Ore Test Compiled Gems (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     env:
       BUNDLE_GEMFILE: TestGemfile
