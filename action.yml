@@ -598,21 +598,6 @@ runs:
         # This will now use the .ruby-version file we ensured exists
         eval "$(~/.local/bin/rv shell env bash)"
 
-        # rv unsets GEM_HOME/GEM_PATH to let Ruby use defaults
-        # We need to query Ruby for these values and export them for subsequent steps
-        ACTUAL_GEM_HOME=$(ruby -e 'print Gem.dir')
-        ACTUAL_GEM_PATH=$(ruby -e 'print Gem.path.join(":")')
-        
-        # Export environment variables to GITHUB_ENV for subsequent steps
-        echo "GEM_HOME=$ACTUAL_GEM_HOME" >> $GITHUB_ENV
-        echo "GEM_PATH=$ACTUAL_GEM_PATH" >> $GITHUB_ENV
-        
-        # Export other Ruby-related variables if they're set
-        [ -n "$RUBY_ROOT" ] && echo "RUBY_ROOT=$RUBY_ROOT" >> $GITHUB_ENV
-        [ -n "$RUBY_ENGINE" ] && echo "RUBY_ENGINE=$RUBY_ENGINE" >> $GITHUB_ENV
-        [ -n "$RUBY_VERSION" ] && echo "RUBY_VERSION=$RUBY_VERSION" >> $GITHUB_ENV
-        [ -n "$RUBYOPT" ] && echo "RUBYOPT=$RUBYOPT" >> $GITHUB_ENV
-
         # Verify Ruby is now active
         RUBY_EXECUTABLE=$(which ruby)
         if [ -z "$RUBY_EXECUTABLE" ]; then
@@ -625,12 +610,30 @@ runs:
         RUBY_BIN_DIR=$(dirname "$RUBY_EXECUTABLE")
         RUBY_PREFIX=$(dirname "$RUBY_BIN_DIR")
         echo "Found Ruby at: $RUBY_PREFIX"
+        
+        # Determine GEM_HOME based on rv's Ruby installation structure
+        # rv installs gems to: $RUBY_PREFIX/lib/ruby/gems/$MAJOR.$MINOR.0
+        FULL_RUBY_VERSION=$(ruby -e 'print RUBY_VERSION')
+        MAJOR_MINOR=$(echo "$FULL_RUBY_VERSION" | cut -d. -f1,2)
+        ACTUAL_GEM_HOME="$RUBY_PREFIX/lib/ruby/gems/${MAJOR_MINOR}.0"
+        ACTUAL_GEM_PATH="$ACTUAL_GEM_HOME"
+        
+        echo "Setting GEM_HOME to: $ACTUAL_GEM_HOME"
+        
+        # Export environment variables to GITHUB_ENV for subsequent steps
+        echo "GEM_HOME=$ACTUAL_GEM_HOME" >> $GITHUB_ENV
+        echo "GEM_PATH=$ACTUAL_GEM_PATH" >> $GITHUB_ENV
+        
+        # Export other Ruby-related variables if they're set
+        [ -n "$RUBY_ROOT" ] && echo "RUBY_ROOT=$RUBY_ROOT" >> $GITHUB_ENV
+        [ -n "$RUBY_ENGINE" ] && echo "RUBY_ENGINE=$RUBY_ENGINE" >> $GITHUB_ENV
+        [ -n "$RUBY_VERSION" ] && echo "RUBY_VERSION=$RUBY_VERSION" >> $GITHUB_ENV
+        [ -n "$RUBYOPT" ] && echo "RUBYOPT=$RUBYOPT" >> $GITHUB_ENV
 
         # Add Ruby to GITHUB_PATH for subsequent steps
         echo "$RUBY_BIN_DIR" >> $GITHUB_PATH
 
         # Get versions for outputs
-        FULL_RUBY_VERSION=$(ruby -e 'print RUBY_VERSION')
         GEM_VERSION=$(gem --version)
 
         # Set outputs
