@@ -932,8 +932,6 @@ runs:
         # Verify Ruby is active
         echo "Ruby in PATH: $(which ruby)"
         echo "Ruby version: $(ruby --version)"
-        echo "Ruby in PATH: $(which ruby)"
-        echo "Ruby version: $(ruby --version)"
         
         GIT_REF="${{ inputs.ore-git-ref }}"
         GFGO_GIT_REF="${{ inputs.gfgo-git-ref }}"
