@@ -1047,26 +1047,32 @@ runs:
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       run: |
-        # Determine which lockfile to use based on BUNDLE_GEMFILE
+        # Determine which Gemfile and lockfile to use based on BUNDLE_GEMFILE
         if [ -n "$BUNDLE_GEMFILE" ]; then
-          # If BUNDLE_GEMFILE is set, derive lockfile name from it
+          GEMFILE="$BUNDLE_GEMFILE"
           LOCKFILE="${BUNDLE_GEMFILE}.lock"
         else
-          # Default to Gemfile.lock
+          GEMFILE="Gemfile"
           LOCKFILE="Gemfile.lock"
         fi
         
         if [ -f "$LOCKFILE" ]; then
-          LOCKFILE_HASH=$(sha256sum "$LOCKFILE" | awk '{print $1}' | cut -c1-12)
-          echo "Using lockfile: $LOCKFILE (hash: $LOCKFILE_HASH)"
+          # Lockfile exists - use its hash for cache key
+          CACHE_HASH=$(sha256sum "$LOCKFILE" | awk '{print $1}' | cut -c1-12)
+          echo "Using lockfile: $LOCKFILE (hash: $CACHE_HASH)"
+        elif [ -f "$GEMFILE" ]; then
+          # No lockfile yet - use Gemfile hash to ensure unique cache per Gemfile
+          CACHE_HASH=$(sha256sum "$GEMFILE" | awk '{print $1}' | cut -c1-12)
+          echo "No lockfile found, using Gemfile: $GEMFILE (hash: $CACHE_HASH)"
         else
-          LOCKFILE_HASH="no-lockfile"
-          echo "No lockfile found: $LOCKFILE"
+          # Neither exists - use generic identifier
+          CACHE_HASH="no-gemfile"
+          echo "No Gemfile or lockfile found"
         fi
 
         # Use full Ruby version to prevent ABI mismatch with native extensions
         FULL_RUBY="${{ steps.setup.outputs.ruby-full-version }}"
-        CACHE_KEY="setup-ruby-flash-gems-${{ inputs.cache-version }}-${{ steps.platform.outputs.platform }}-ruby-${FULL_RUBY}-${LOCKFILE_HASH}"
+        CACHE_KEY="setup-ruby-flash-gems-${{ inputs.cache-version }}-${{ steps.platform.outputs.platform }}-ruby-${FULL_RUBY}-${CACHE_HASH}"
         echo "key=$CACHE_KEY" >> $GITHUB_OUTPUT
 
         # Only restore from caches with the same full Ruby version to prevent ABI mismatches
