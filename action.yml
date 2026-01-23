@@ -1048,7 +1048,7 @@ runs:
       working-directory: ${{ inputs.working-directory }}
       run: |
         if [ -f "Gemfile.lock" ]; then
-          LOCKFILE_HASH=$(sha256sum Gemfile.lock | awk '{print $1}')
+          LOCKFILE_HASH=$(sha256sum Gemfile.lock | awk '{print $1}' | cut -c1-12)
         else
           LOCKFILE_HASH="no-lockfile"
         fi
