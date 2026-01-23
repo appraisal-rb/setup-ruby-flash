@@ -111,7 +111,6 @@ jobs:
           echo "==> Smoke a Rake"
           bundle exec rake -T
 
-
   # Test the action with ore gem installation (Compiled Extensions)
   test-action-with-ore-compiled:
     name: Action + Ore Test Compiled Gems (${{ matrix.os }})
@@ -141,7 +140,7 @@ jobs:
           # Need GH Token Authenticated requests, switch once the feature is released
           rv-git-ref: 'main'
           # Build both ore and gemfile-go from main
-          ore-git-ref: 'master'
+          ore-git-ref: 'feat/debugging'
           gfgo-git-ref: 'master'
 
       - name: Verify ore installation
@@ -150,9 +149,27 @@ jobs:
           ore --version
           echo "==> Installed gems:"
           ore list
-          echo "==> ore check:"
-          ore check
-
+          echo "==> Debug: Check gem directory structure:"
+          echo "GEM_HOME=$GEM_HOME"
+          if [ -d "$GEM_HOME/gems" ]; then
+            echo "Contents of $GEM_HOME/gems:"
+            ls -la "$GEM_HOME/gems" | head -20
+          else
+            echo "⚠️  $GEM_HOME/gems does not exist!"
+          fi
+          echo "==> Debug: Check BUNDLE_GEMFILE and lockfile:"
+          echo "BUNDLE_GEMFILE=$BUNDLE_GEMFILE"
+          if [ -f "${BUNDLE_GEMFILE}.lock" ]; then
+            echo "Lockfile ${BUNDLE_GEMFILE}.lock exists"
+            echo "First 20 lines of lockfile:"
+            head -20 "${BUNDLE_GEMFILE}.lock"
+          else
+            echo "⚠️  Lockfile ${BUNDLE_GEMFILE}.lock not found!"
+          fi
+          echo "==> ore info --debug nokogiri:"
+          ore info --debug nokogiri || echo "⚠️  ore info failed"
+          echo "==> ore check (verbose):"
+          ore check -v
 
   # Run acceptance tests (after action installs Ruby)
   acceptance-tests:
@@ -202,6 +219,7 @@ jobs:
 
       - name: Run RuboCop
         run: bundle exec rubocop
+
   # Test gfgo-git-ref feature (build ore with gemfile-go from source)
   test-gfgo-git-ref:
     name: Test gfgo-git-ref (${{ matrix.os }})
