@@ -95,10 +95,16 @@ jobs:
         run: |
           echo "==> ore version:"
           ore --version
+          echo "==> Environment:"
+          echo "BUNDLE_GEMFILE=$BUNDLE_GEMFILE"
+          echo "GEM_HOME=$GEM_HOME"
+          echo "GEM_PATH=$GEM_PATH"
+          echo "Ruby: $(which ruby)"
+          echo "Ruby version: $(ruby --version)"
           echo "==> Installed gems:"
           ore list
-          echo "==> ore check:"
-          ore check
+          echo "==> ore check (verbose):"
+          ore check -v
           echo "==> Smoke a Rake"
           bundle exec rake -T
 
