@@ -124,7 +124,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Create test Gemfile (Pure Ruby)
+      - name: Create test Gemfile (Compiled Ruby)
         run: |
           cat > ${{ env.BUNDLE_GEMFILE }} << 'EOF'
           source 'https://gem.coop'
@@ -135,41 +135,127 @@ jobs:
         uses: ./
         with:
           ruby-version: '4.0'
-          ore-install: true
+          ore-install: false
           cache-version: 'v3'
           # Need GH Token Authenticated requests, switch once the feature is released
           rv-git-ref: 'main'
           # Build both ore and gemfile-go from main
-          ore-git-ref: 'feat/debugging'
+          ore-git-ref: 'master'
           gfgo-git-ref: 'master'
+
+      - name: "Pre-install: ore info --debug nokogiri"
+        run: |
+          mkdir -p tmp
+          echo "==> PRE: ore info --debug nokogiri" > tmp/pre_ore_info_nokogiri.txt 2>&1
+          ore info --debug nokogiri >> tmp/pre_ore_info_nokogiri.txt 2>&1 || echo "⚠️  ore info (pre) failed" >> tmp/pre_ore_info_nokogiri.txt 2>&1
+
+      - name: "Run ore install (explicit)"
+        run: |
+          echo "==> Running ore install (explicit step)" > tmp/explicit_install.txt 2>&1
+          ore install >> tmp/explicit_install.txt 2>&1 || true
+
+      - name: "Post-install: ore info --debug nokogiri"
+        run: |
+          echo "==> POST: ore info --debug nokogiri" > tmp/post_ore_info_nokogiri.txt 2>&1
+          ore info --debug nokogiri >> tmp/post_ore_info_nokogiri.txt 2>&1 || echo "⚠️  ore info (post) failed" >> tmp/post_ore_info_nokogiri.txt 2>&1
 
       - name: Verify ore installation
         run: |
-          echo "==> ore version:"
-          ore --version
-          echo "==> Installed gems:"
-          ore list
-          echo "==> Debug: Check gem directory structure:"
-          echo "GEM_HOME=$GEM_HOME"
+          mkdir -p tmp
+          echo "==> ore version:" > tmp/verify.txt 2>&1
+          ore --version >> tmp/verify.txt 2>&1 || true
+          echo "==> Installed gems:" >> tmp/verify.txt 2>&1
+          ore list >> tmp/verify.txt 2>&1 || true
+          echo "==> Debug: Check gem directory structure:" >> tmp/verify.txt 2>&1
+          echo "GEM_HOME=$GEM_HOME" >> tmp/verify.txt 2>&1
           if [ -d "$GEM_HOME/gems" ]; then
-            echo "Contents of $GEM_HOME/gems:"
-            ls -la "$GEM_HOME/gems" | head -20
+            echo "Contents of $GEM_HOME/gems:" >> tmp/verify.txt 2>&1
+            ls -la "$GEM_HOME/gems" | head -20 >> tmp/verify.txt 2>&1
           else
-            echo "⚠️  $GEM_HOME/gems does not exist!"
+            echo "⚠️  $GEM_HOME/gems does not exist!" >> tmp/verify.txt 2>&1
           fi
-          echo "==> Debug: Check BUNDLE_GEMFILE and lockfile:"
-          echo "BUNDLE_GEMFILE=$BUNDLE_GEMFILE"
+          echo "==> Debug: Check BUNDLE_GEMFILE and lockfile:" >> tmp/verify.txt 2>&1
+          echo "BUNDLE_GEMFILE=$BUNDLE_GEMFILE" >> tmp/verify.txt 2>&1
           if [ -f "${BUNDLE_GEMFILE}.lock" ]; then
-            echo "Lockfile ${BUNDLE_GEMFILE}.lock exists"
-            echo "First 20 lines of lockfile:"
-            head -20 "${BUNDLE_GEMFILE}.lock"
+            echo "Lockfile ${BUNDLE_GEMFILE}.lock exists" >> tmp/verify.txt 2>&1
+            echo "First 20 lines of lockfile:" >> tmp/verify.txt 2>&1
+            head -20 "${BUNDLE_GEMFILE}.lock" >> tmp/verify.txt 2>&1
           else
-            echo "⚠️  Lockfile ${BUNDLE_GEMFILE}.lock not found!"
+            echo "⚠️  Lockfile ${BUNDLE_GEMFILE}.lock not found!" >> tmp/verify.txt 2>&1
           fi
-          echo "==> ore info --debug nokogiri:"
-          ore info --debug nokogiri || echo "⚠️  ore info failed"
-          echo "==> ore check (verbose):"
-          ore check -v
+          echo "==> ore check (verbose):" >> tmp/ore_check_verbose.txt 2>&1
+          ore check -v >> tmp/ore_check_verbose.txt 2>&1 || true
+
+      - name: Upload debug artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ore-debug-output
+          path: |
+            tmp/pre_ore_info_nokogiri.txt
+            tmp/explicit_install.txt
+            tmp/post_ore_info_nokogiri.txt
+            tmp/verify.txt
+            tmp/ore_check_verbose.txt
+
+#  # Test the action with ore gem installation (Compiled Extensions)
+#  test-action-with-ore-compiled:
+#    name: Action + Ore Test Compiled Gems (${{ matrix.os }})
+#    runs-on: ${{ matrix.os }}
+#    env:
+#      BUNDLE_GEMFILE: TestGemfile
+#    strategy:
+#      fail-fast: false
+#      matrix:
+#        os: [ubuntu-latest, macos-latest]
+#    steps:
+#      - uses: actions/checkout@v5
+#
+#      - name: Create test Gemfile (Pure Ruby)
+#        run: |
+#          cat > ${{ env.BUNDLE_GEMFILE }} << 'EOF'
+#          source 'https://gem.coop'
+#          gem 'nokogiri'
+#          EOF
+#
+#      - name: Run setup-ruby-flash with ore
+#        uses: ./
+#        with:
+#          ruby-version: '4.0'
+#          ore-install: true
+#          cache-version: 'v3'
+#          # Need GH Token Authenticated requests, switch once the feature is released
+#          rv-git-ref: 'main'
+#          # Build both ore and gemfile-go from main
+#          ore-git-ref: 'feat/debugging'
+#          gfgo-git-ref: 'master'
+#
+#      - name: Verify ore installation
+#        run: |
+#          echo "==> ore version:"
+#          ore --version
+#          echo "==> Installed gems:"
+#          ore list
+#          echo "==> Debug: Check gem directory structure:"
+#          echo "GEM_HOME=$GEM_HOME"
+#          if [ -d "$GEM_HOME/gems" ]; then
+#            echo "Contents of $GEM_HOME/gems:"
+#            ls -la "$GEM_HOME/gems" | head -20
+#          else
+#            echo "⚠️  $GEM_HOME/gems does not exist!"
+#          fi
+#          echo "==> Debug: Check BUNDLE_GEMFILE and lockfile:"
+#          echo "BUNDLE_GEMFILE=$BUNDLE_GEMFILE"
+#          if [ -f "${BUNDLE_GEMFILE}.lock" ]; then
+#            echo "Lockfile ${BUNDLE_GEMFILE}.lock exists"
+#            echo "First 20 lines of lockfile:"
+#            head -20 "${BUNDLE_GEMFILE}.lock"
+#          else
+#            echo "⚠️  Lockfile ${BUNDLE_GEMFILE}.lock not found!"
+#          fi
+#          echo "==> ore info --debug nokogiri:"
+#          ore info --debug nokogiri || echo "⚠️  ore info failed"
+#          echo "==> ore check (verbose):"
+#          ore check -v
 
   # Run acceptance tests (after action installs Ruby)
   acceptance-tests:
