@@ -585,17 +585,13 @@ runs:
       run: |
         RUBY_VERSION="${{ steps.detect-ruby.outputs.version }}"
 
-        # Ensure .ruby-version exists in working directory so rv knows which Ruby to activate
-        # Only create it if it doesn't exist (don't override existing files)
-        if [ ! -f .ruby-version ]; then
-          echo "$RUBY_VERSION" > .ruby-version
-          echo "Created .ruby-version with $RUBY_VERSION"
-        else
-          echo "Using existing .ruby-version: $(cat .ruby-version)"
-        fi
+        # Always overwrite .ruby-version to ensure it matches the installed Ruby version
+        # In CI, we expect to use the specified Ruby version regardless of local .ruby-version
+        echo "$RUBY_VERSION" > .ruby-version
+        echo "Created .ruby-version with $RUBY_VERSION"
 
         # Activate rv shell integration to set up PATH and environment
-        # This will now use the .ruby-version file we ensured exists
+        # This will now use the .ruby-version file we just created
         eval "$(~/.local/bin/rv shell env bash)"
 
         # Verify Ruby is now active
