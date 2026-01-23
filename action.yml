@@ -438,10 +438,6 @@ runs:
           fi
         fi
 
-        # Get the actual commit SHA for cache busting
-        COMMIT_SHA=$(git rev-parse HEAD)
-        echo "Building rv at commit: $COMMIT_SHA"
-        echo "commit-sha=$COMMIT_SHA" >> $GITHUB_OUTPUT
 
         # Build rv using cargo
         cargo build --release
@@ -507,7 +503,7 @@ runs:
 
         # 'ruby' means latest stable Ruby version (like setup-ruby)
         if [ "$RUBY_VERSION" = "ruby" ]; then
-          RUBY_VERSION="3.4"
+          RUBY_VERSION="4.0"
           echo "Using latest stable Ruby version: $RUBY_VERSION"
         elif [ "$RUBY_VERSION" = "default" ]; then
           # Check version files in order of precedence
@@ -921,9 +917,19 @@ runs:
         # Get the Ruby version we should be using
         RUBY_VERSION="${{ steps.detect-ruby.outputs.version }}"
         
-        # Activate rv environment with the specific Ruby version
-        # We can't rely on .ruby-version because we're building in /tmp
-        export PATH="$(~/.local/bin/rv ruby find "$RUBY_VERSION" | xargs dirname):$PATH"
+        # Activate rv shell integration with the specific Ruby version
+        # We can't rely on an existing .ruby-version because we're building in /tmp
+        # Create a temporary .ruby-version file for rv to use
+        RV_TMP_DIR="$(mktemp -d)"
+        echo "$RUBY_VERSION" > "$RV_TMP_DIR/.ruby-version"
+        
+        # Use rv shell integration to set up the environment
+        cd "$RV_TMP_DIR"
+        eval "$(~/.local/bin/rv shell env bash)"
+        cd - > /dev/null
+        
+        # Clean up temporary directory
+        rm -rf "$RV_TMP_DIR"
         
         # Verify Ruby is active
         echo "Ruby in PATH: $(which ruby)"
