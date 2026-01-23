@@ -363,11 +363,25 @@ runs:
       env:
         GH_TOKEN: ${{ inputs.token }}
       run: |
-        # If git ref is specified, use it for cache key
+        # If git ref is specified, resolve to commit SHA for cache key
         if [ -n "${{ inputs.rv-git-ref }}" ]; then
-          VERSION="${{ inputs.rv-git-ref }}"
+          GIT_REF="${{ inputs.rv-git-ref }}"
           echo "build-from-source=true" >> $GITHUB_OUTPUT
-          echo "Using rv git ref: $VERSION (will build from source)"
+          
+          # Parse fork syntax: owner:ref or just ref
+          if [[ "$GIT_REF" == *":"* ]]; then
+            FORK_OWNER="${GIT_REF%%:*}"
+            REF="${GIT_REF#*:}"
+            REPO="$FORK_OWNER/rv"
+          else
+            REPO="spinel-coop/rv"
+            REF="$GIT_REF"
+          fi
+          
+          # Resolve to commit SHA using GitHub API
+          COMMIT_SHA=$(gh api "repos/$REPO/commits/$REF" --jq '.sha' 2>/dev/null || echo "$REF")
+          VERSION="${COMMIT_SHA:0:12}"  # Use first 12 chars of SHA
+          echo "Using rv git ref: $GIT_REF (commit: $VERSION)"
         elif [ "${{ inputs.rv-version }}" = "latest" ]; then
           VERSION=$(gh api repos/spinel-coop/rv/releases/latest --jq '.tag_name' 2>/dev/null || echo "v0.4.1")
           echo "build-from-source=false" >> $GITHUB_OUTPUT
@@ -423,6 +437,7 @@ runs:
             exit 1
           fi
         fi
+
 
         # Build rv using cargo
         cargo build --release
@@ -488,7 +503,7 @@ runs:
 
         # 'ruby' means latest stable Ruby version (like setup-ruby)
         if [ "$RUBY_VERSION" = "ruby" ]; then
-          RUBY_VERSION="3.4"
+          RUBY_VERSION="4.0"
           echo "Using latest stable Ruby version: $RUBY_VERSION"
         elif [ "$RUBY_VERSION" = "default" ]; then
           # Check version files in order of precedence
@@ -558,33 +573,59 @@ runs:
         echo "::error::Failed to install Ruby $RUBY_VERSION after $MAX_RETRIES attempts"
         exit 1
 
-    - name: Configure Ruby environment
+    - name: Configure Ruby environment with rv shell integration
       if: steps.check-support.outputs.use-fallback != 'true'
       id: setup
       shell: bash
+      working-directory: ${{ inputs.working-directory }}
       run: |
         RUBY_VERSION="${{ steps.detect-ruby.outputs.version }}"
 
-        # Use rv to find the installed Ruby executable path
-        RUBY_EXECUTABLE=$(~/.local/bin/rv ruby find "$RUBY_VERSION" 2>/dev/null)
+        # Always overwrite .ruby-version to ensure it matches the installed Ruby version
+        # In CI, we expect to use the specified Ruby version regardless of local .ruby-version
+        echo "$RUBY_VERSION" > .ruby-version
+        echo "Created .ruby-version with $RUBY_VERSION"
 
+        # Activate rv shell integration to set up PATH and environment
+        # This will now use the .ruby-version file we just created
+        eval "$(~/.local/bin/rv shell env bash)"
+
+        # Verify Ruby is now active
+        RUBY_EXECUTABLE=$(which ruby)
         if [ -z "$RUBY_EXECUTABLE" ]; then
-          echo "::error::Could not find Ruby $RUBY_VERSION installation"
+          echo "::error::Ruby not found in PATH after rv activation"
           ~/.local/bin/rv ruby list || true
           exit 1
         fi
 
-        # Get the bin directory from the executable path
+        # Get Ruby installation details
         RUBY_BIN_DIR=$(dirname "$RUBY_EXECUTABLE")
         RUBY_PREFIX=$(dirname "$RUBY_BIN_DIR")
         echo "Found Ruby at: $RUBY_PREFIX"
+        
+        # Determine GEM_HOME based on rv's Ruby installation structure
+        # rv installs gems to: $RUBY_PREFIX/lib/ruby/gems/$MAJOR.$MINOR.0
+        FULL_RUBY_VERSION=$(ruby -e 'print RUBY_VERSION')
+        MAJOR_MINOR=$(echo "$FULL_RUBY_VERSION" | cut -d. -f1,2)
+        ACTUAL_GEM_HOME="$RUBY_PREFIX/lib/ruby/gems/${MAJOR_MINOR}.0"
+        ACTUAL_GEM_PATH="$ACTUAL_GEM_HOME"
+        
+        echo "Setting GEM_HOME to: $ACTUAL_GEM_HOME"
+        
+        # Export environment variables to GITHUB_ENV for subsequent steps
+        echo "GEM_HOME=$ACTUAL_GEM_HOME" >> $GITHUB_ENV
+        echo "GEM_PATH=$ACTUAL_GEM_PATH" >> $GITHUB_ENV
+        
+        # Export other Ruby-related variables if they're set
+        [ -n "$RUBY_ROOT" ] && echo "RUBY_ROOT=$RUBY_ROOT" >> $GITHUB_ENV
+        [ -n "$RUBY_ENGINE" ] && echo "RUBY_ENGINE=$RUBY_ENGINE" >> $GITHUB_ENV
+        [ -n "$RUBY_VERSION" ] && echo "RUBY_VERSION=$RUBY_VERSION" >> $GITHUB_ENV
+        [ -n "$RUBYOPT" ] && echo "RUBYOPT=$RUBYOPT" >> $GITHUB_ENV
 
-        # Add Ruby to PATH
+        # Add Ruby to GITHUB_PATH for subsequent steps
         echo "$RUBY_BIN_DIR" >> $GITHUB_PATH
 
-        # Get the actual full Ruby version for cache key accuracy
-        export PATH="$RUBY_BIN_DIR:$PATH"
-        FULL_RUBY_VERSION=$(ruby -e 'print RUBY_VERSION')
+        # Get versions for outputs
         GEM_VERSION=$(gem --version)
 
         # Set outputs
@@ -801,11 +842,25 @@ runs:
       env:
         GH_TOKEN: ${{ inputs.token }}
       run: |
-        # If git ref is specified, use it for cache key
+        # If git ref is specified, resolve to commit SHA for cache key
         if [ -n "${{ inputs.ore-git-ref }}" ]; then
-          VERSION="${{ inputs.ore-git-ref }}"
+          GIT_REF="${{ inputs.ore-git-ref }}"
           echo "build-from-source=true" >> $GITHUB_OUTPUT
-          echo "Using ore git ref: $VERSION (will build from source)"
+          
+          # Parse fork syntax: owner:ref or just ref
+          if [[ "$GIT_REF" == *":"* ]]; then
+            FORK_OWNER="${GIT_REF%%:*}"
+            REF="${GIT_REF#*:}"
+            REPO="$FORK_OWNER/ore-light"
+          else
+            REPO="contriboss/ore-light"
+            REF="$GIT_REF"
+          fi
+          
+          # Resolve to commit SHA using GitHub API
+          COMMIT_SHA=$(gh api "repos/$REPO/commits/$REF" --jq '.sha' 2>/dev/null || echo "$REF")
+          VERSION="${COMMIT_SHA:0:12}"  # Use first 12 chars of SHA
+          echo "Using ore git ref: $GIT_REF (commit: $VERSION)"
         elif [ "${{ inputs.ore-version }}" = "latest" ]; then
           VERSION=$(gh api repos/contriboss/ore-light/releases/latest --jq '.tag_name' 2>/dev/null || echo "v0.18.0")
           echo "build-from-source=false" >> $GITHUB_OUTPUT
@@ -816,6 +871,29 @@ runs:
         VERSION="${VERSION#v}"
         echo "version=$VERSION" >> $GITHUB_OUTPUT
         echo "Resolved ore version: $VERSION"
+        
+        # Also resolve gfgo-git-ref if specified (affects ore cache key)
+        if [ -n "${{ inputs.gfgo-git-ref }}" ]; then
+          GFGO_REF="${{ inputs.gfgo-git-ref }}"
+          
+          # Parse fork syntax: owner:ref or just ref
+          if [[ "$GFGO_REF" == *":"* ]]; then
+            GFGO_FORK_OWNER="${GFGO_REF%%:*}"
+            GFGO_REF_NAME="${GFGO_REF#*:}"
+            GFGO_REPO="$GFGO_FORK_OWNER/gemfile-go"
+          else
+            GFGO_REPO="contriboss/gemfile-go"
+            GFGO_REF_NAME="$GFGO_REF"
+          fi
+          
+          # Resolve to commit SHA
+          GFGO_SHA=$(gh api "repos/$GFGO_REPO/commits/$GFGO_REF_NAME" --jq '.sha' 2>/dev/null || echo "$GFGO_REF")
+          GFGO_VERSION="${GFGO_SHA:0:12}"
+          echo "gfgo-version=$GFGO_VERSION" >> $GITHUB_OUTPUT
+          echo "Using gemfile-go git ref: $GFGO_REF (commit: $GFGO_VERSION)"
+        else
+          echo "gfgo-version=" >> $GITHUB_OUTPUT
+        fi
 
     - name: Cache ore binary
       if: steps.check-support.outputs.use-fallback != 'true' && (inputs.ore-install == 'true' || inputs.bundler-cache == 'true')
@@ -823,7 +901,7 @@ runs:
       uses: actions/cache@v4
       with:
         path: ~/.local/bin/ore
-        key: setup-ruby-flash-ore-${{ steps.platform.outputs.platform }}-ruby-${{ steps.detect-ruby.outputs.version }}-${{ steps.ore-version.outputs.version }}-${{ steps.ore-version.outputs.build-from-source }}-gfgo-${{ inputs.gfgo-git-ref }}
+        key: setup-ruby-flash-ore-${{ steps.platform.outputs.platform }}-ruby-${{ steps.detect-ruby.outputs.version }}-${{ steps.ore-version.outputs.version }}-${{ steps.ore-version.outputs.build-from-source }}-gfgo-${{ steps.ore-version.outputs.gfgo-version }}
 
     - name: Setup Go toolchain for ore
       if: steps.check-support.outputs.use-fallback != 'true' && (inputs.ore-install == 'true' || inputs.bundler-cache == 'true') && steps.cache-ore.outputs.cache-hit != 'true' && steps.ore-version.outputs.build-from-source == 'true'
@@ -836,6 +914,35 @@ runs:
       id: build-ore
       shell: bash
       run: |
+        # Get the Ruby version we should be using
+        RUBY_VERSION="${{ steps.detect-ruby.outputs.version }}"
+        
+        # Activate rv shell integration with the specific Ruby version
+        # Save the current .ruby-version if it exists
+        if [ -f .ruby-version ]; then
+          SAVED_RUBY_VERSION=$(cat .ruby-version)
+          HAD_RUBY_VERSION=true
+        else
+          HAD_RUBY_VERSION=false
+        fi
+        
+        # Create/overwrite .ruby-version with the Ruby version we're using
+        echo "$RUBY_VERSION" > .ruby-version
+        
+        # Use rv shell integration to set up the environment
+        eval "$(~/.local/bin/rv shell env bash)"
+        
+        # Restore original .ruby-version or remove it
+        if [ "$HAD_RUBY_VERSION" = true ]; then
+          echo "$SAVED_RUBY_VERSION" > .ruby-version
+        else
+          rm -f .ruby-version
+        fi
+        
+        # Verify Ruby is active
+        echo "Ruby in PATH: $(which ruby)"
+        echo "Ruby version: $(ruby --version)"
+        
         GIT_REF="${{ inputs.ore-git-ref }}"
         GFGO_GIT_REF="${{ inputs.gfgo-git-ref }}"
         echo "Building ore from source (git ref: $GIT_REF)..."
@@ -948,15 +1055,32 @@ runs:
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       run: |
-        if [ -f "Gemfile.lock" ]; then
-          LOCKFILE_HASH=$(sha256sum Gemfile.lock | awk '{print $1}')
+        # Determine which Gemfile and lockfile to use based on BUNDLE_GEMFILE
+        if [ -n "$BUNDLE_GEMFILE" ]; then
+          GEMFILE="$BUNDLE_GEMFILE"
+          LOCKFILE="${BUNDLE_GEMFILE}.lock"
         else
-          LOCKFILE_HASH="no-lockfile"
+          GEMFILE="Gemfile"
+          LOCKFILE="Gemfile.lock"
+        fi
+        
+        if [ -f "$LOCKFILE" ]; then
+          # Lockfile exists - use its hash for cache key
+          CACHE_HASH=$(sha256sum "$LOCKFILE" | awk '{print $1}' | cut -c1-12)
+          echo "Using lockfile: $LOCKFILE (hash: $CACHE_HASH)"
+        elif [ -f "$GEMFILE" ]; then
+          # No lockfile yet - use Gemfile hash to ensure unique cache per Gemfile
+          CACHE_HASH=$(sha256sum "$GEMFILE" | awk '{print $1}' | cut -c1-12)
+          echo "No lockfile found, using Gemfile: $GEMFILE (hash: $CACHE_HASH)"
+        else
+          # Neither exists - use generic identifier
+          CACHE_HASH="no-gemfile"
+          echo "No Gemfile or lockfile found"
         fi
 
         # Use full Ruby version to prevent ABI mismatch with native extensions
         FULL_RUBY="${{ steps.setup.outputs.ruby-full-version }}"
-        CACHE_KEY="setup-ruby-flash-gems-${{ inputs.cache-version }}-${{ steps.platform.outputs.platform }}-ruby-${FULL_RUBY}-${LOCKFILE_HASH}"
+        CACHE_KEY="setup-ruby-flash-gems-${{ inputs.cache-version }}-${{ steps.platform.outputs.platform }}-ruby-${FULL_RUBY}-${CACHE_HASH}"
         echo "key=$CACHE_KEY" >> $GITHUB_OUTPUT
 
         # Only restore from caches with the same full Ruby version to prevent ABI mismatches
@@ -969,6 +1093,7 @@ runs:
       with:
         path: |
           ${{ steps.setup.outputs.ruby-prefix }}/lib/ruby/gems
+          ~/.cache/ore/gems
         key: ${{ steps.gem-cache-key.outputs.key }}
         restore-keys: ${{ steps.gem-cache-key.outputs.restore-keys }}
 
@@ -977,19 +1102,22 @@ runs:
       id: install-gems
       shell: bash
       working-directory: ${{ inputs.working-directory }}
-      env:
-        # Ensure ore uses the rv-installed Ruby's gem directory
-        # Use ruby-full-version for the gems path (e.g., 3.4.8 -> gems/3.4.0)
-        GEM_HOME: ${{ steps.setup.outputs.ruby-prefix }}/lib/ruby/gems/${{ steps.detect-ruby.outputs.version }}.0
-        GEM_PATH: ${{ steps.setup.outputs.ruby-prefix }}/lib/ruby/gems/${{ steps.detect-ruby.outputs.version }}.0
       run: |
-        # Ensure we're using the rv-installed Ruby
-        export PATH="${{ steps.setup.outputs.ruby-prefix }}/bin:$PATH"
-
+        # Environment variables (GEM_HOME, GEM_PATH, etc.) are already set via GITHUB_ENV
+        # from the "Configure Ruby environment" step
+        
         # Verify we're using the right Ruby
         echo "Using Ruby: $(which ruby)"
         echo "Ruby version: $(ruby --version)"
         echo "GEM_HOME: $GEM_HOME"
+        
+        # Debug: Check what gems are already in GEM_HOME
+        echo "==> Gems in $GEM_HOME before ore install:"
+        if [ -d "$GEM_HOME/gems" ]; then
+          ls -1 "$GEM_HOME/gems" | head -20
+        else
+          echo "  (gems directory doesn't exist yet)"
+        fi
 
         # Configure .gemrc to skip documentation if requested
         # This affects all gem installations including those done by Bundler/ore
@@ -1017,6 +1145,27 @@ runs:
         $INSTALL_CMD
         END_TIME=$(date +%s)
         ELAPSED=$((END_TIME - START_TIME))
+        
+        # Debug: Show the lockfile that was generated
+        if [ -n "$BUNDLE_GEMFILE" ]; then
+          LOCKFILE="${BUNDLE_GEMFILE}.lock"
+        else
+          LOCKFILE="Gemfile.lock"
+        fi
+        echo "==> Lockfile contents ($LOCKFILE):"
+        if [ -f "$LOCKFILE" ]; then
+          cat "$LOCKFILE"
+        else
+          echo "  (lockfile not found!)"
+        fi
+        
+        # Debug: Check what gems are in GEM_HOME after ore install
+        echo "==> Gems in $GEM_HOME after ore install:"
+        if [ -d "$GEM_HOME/gems" ]; then
+          ls -1 "$GEM_HOME/gems" | head -20
+        else
+          echo "  (gems directory still doesn't exist!)"
+        fi
 
         echo "ore-version=${{ steps.ore-version.outputs.version }}" >> $GITHUB_OUTPUT
         echo "cache-hit=${{ steps.cache-gems.outputs.cache-hit }}" >> $GITHUB_OUTPUT

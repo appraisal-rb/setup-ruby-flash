@@ -74,6 +74,20 @@ setup-ruby-flash now supports building `rv`, `ore`, and `gemfile-go` from git br
 
 **How it works**: Creates a `go.work` file in the ore build directory that references the local gemfile-go checkout, allowing ore to use the specified gemfile-go version without modifying go.mod or go.sum
 
+**Implementation Approach**: Following the recommended Go workspace approach:
+
+1. **Uses `go.work` workspace** - Clean, standard Go approach for multi-repo development
+2. **No go.mod modifications** - Avoids accidental commits of replace directives
+3. **Automatic in CI** - Checkouts and workspace setup handled by the action
+4. **Optional for local dev** - Developers can create go.work manually if needed
+
+**Benefits**:
+
+- **For CI/CD**: Test unreleased features before formal releases, validate compatibility between ore and gemfile-go changes, reproducible builds with commit SHAs, fast cached builds on subsequent runs
+- **For Development**: No go.mod pollution, standard Go workspace approach, easy to enable/disable (just add/remove go.work), works same way in CI and locally
+- **For Security**: Fork syntax allows testing security patches before merge, commit SHA pinning ensures reproducibility, separate cache keys prevent cross-contamination
+
+
 ## Usage Examples
 
 ### Example 1: Test BUNDLE_GEMFILE Fix in ore-light
@@ -381,6 +395,7 @@ The action handles this automatically when you set both `ore-git-ref` and `gfgo-
 
 - rv: ~3-5 minutes (Rust compilation)
 - ore: ~1-2 minutes (Go compilation)
+- ore + gemfile-go: ~2-3 minutes (additional checkout and workspace setup)
 
 **With release** (downloads binary):
 
@@ -420,6 +435,24 @@ The action handles this automatically when you set both `ore-git-ref` and `gfgo-
 
 - ✅ git
 - ✅ Standard build tools (make, gcc, etc.)
+
+## Testing
+
+The CI workflow includes dedicated jobs to test building from source:
+
+### test-rv-git-ref
+- Tests building rv from main branch
+- Verifies rv installation and Ruby version management
+
+### test-ore-git-ref
+- Tests building ore from master branch
+- Verifies ore installation and gem management
+
+### test-gfgo-git-ref
+- Tests building ore from master with gemfile-go from main
+- Runs on both ubuntu-latest and macos-latest
+- Verifies ore installation works correctly
+- Tests gem installation and management with custom gemfile-go
 
 ## Troubleshooting
 
