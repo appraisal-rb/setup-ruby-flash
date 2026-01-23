@@ -25,7 +25,7 @@ concurrency:
 
 jobs:
   acceptance-tests:
-    name: Acceptance Tests (Ruby ${{ matrix.ruby }})
+    name: Acceptance Tests - Runtime Heads (Ruby ${{ matrix.ruby }})
     runs-on: ubuntu-latest
     continue-on-error: ${{ matrix.experimental || endsWith(matrix.ruby, 'head') }}
     strategy:
