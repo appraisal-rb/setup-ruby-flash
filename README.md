@@ -137,6 +137,24 @@ For easy migration from ruby/setup-ruby, use `bundler-cache` (works the same as 
     bundler-cache: true
 ```
 
+### Manual Ore Commands
+
+Install ore without running `ore install` automatically, allowing manual ore commands:
+
+```yaml
+- uses: appraisal-rb/setup-ruby-flash@v1
+  with:
+    ruby-version: "3.4"
+    ore-setup: true      # Install ore binary
+    ore-install: false   # Don't auto-install gems
+
+- name: Custom ore workflow
+  run: |
+    ore fetch --all
+    ore check --verbose
+    ore list
+```
+
 ### Using Version Files
 
 When `ruby-version` is set to `default` (the default), setup-ruby-flash reads from:
@@ -158,7 +176,8 @@ When `ruby-version` is set to `default` (the default), setup-ruby-flash reads fr
 | `ruby-version`         | Ruby version to install (e.g., `3.4`, `3.4.1`). Use `ruby` for latest stable version, or `default` to read from version files. | `default`             |
 | `rubygems`             | RubyGems version: `default`, `latest`, or a version number (e.g., `3.5.0`)                                                     | `default`             |
 | `bundler`              | Bundler version: `Gemfile.lock`, `default`, `latest`, `none`, or a version number                                              | `Gemfile.lock`        |
-| `ore-install`          | Run `ore install` and cache gems                                                                                               | `false`               |
+| `ore-setup`            | Install ore binary: `true`, `false`, or `auto` (installs if `ore-install` or `bundler-cache` is enabled)                       | `auto`                |
+| `ore-install`          | Run `ore install` command to install gems from lockfile (requires ore to be installed)                                         | `false`               |
 | `bundler-cache`        | Enable Bundler caching (alias for `ore-install` for compatibility with ruby/setup-ruby)                                        | `false`               |
 | `working-directory`    | Directory for version files and Gemfile                                                                                        | `.`                   |
 | `cache-version`        | Cache version string for invalidation                                                                                          | `v1`                  |

@@ -34,10 +34,23 @@ inputs:
     required: false
     default: "Gemfile.lock"
 
+  ore-setup:
+    description: |
+      Install ore (the gem manager) in the environment.
+      Either 'true', 'false', or 'auto' (default).
+      When 'auto', ore is installed if ore-install or bundler-cache is true.
+      When 'true', ore is always installed even if ore-install is false.
+      When 'false', ore is never installed.
+      Use 'true' when you want ore available but will run ore commands manually.
+    required: false
+    default: "auto"
+
   ore-install:
     description: |
-      Run "ore install" to install gems and cache them automatically.
+      Run "ore install" command to install gems from lockfile.
       Either 'true' or 'false'.
+      Note: Requires ore-setup to be 'true' or 'auto' (with bundler-cache enabled).
+      When false, gems are not installed automatically, but ore will still be available if ore-setup is true.
     required: false
     default: "false"
 
@@ -801,7 +814,7 @@ runs:
         fi
 
     - name: Generate summary (Ruby only)
-      if: steps.check-support.outputs.use-fallback != 'true' && inputs.ore-install != 'true' && inputs.bundler-cache != 'true'
+      if: steps.check-support.outputs.use-fallback != 'true' && steps.should-install-ore.outputs.install-ore != 'true'
       shell: bash
       run: |
         RUBYGEMS_VERSION="${{ steps.configure-rubygems.outputs.version }}"
@@ -835,8 +848,35 @@ runs:
           echo "| Ruby Install Time | ${{ steps.install-ruby.outputs.install-time }}s |" >> $GITHUB_STEP_SUMMARY
         fi
 
+    - name: Determine if ore should be installed
+      if: steps.check-support.outputs.use-fallback != 'true'
+      id: should-install-ore
+      shell: bash
+      run: |
+        ORE_SETUP="${{ inputs.ore-setup }}"
+        ORE_INSTALL="${{ inputs.ore-install }}"
+        BUNDLER_CACHE="${{ inputs.bundler-cache }}"
+        
+        # Determine if ore should be installed
+        if [ "$ORE_SETUP" = "true" ]; then
+          echo "install-ore=true" >> $GITHUB_OUTPUT
+          echo "Ore will be installed (ore-setup: true)"
+        elif [ "$ORE_SETUP" = "false" ]; then
+          echo "install-ore=false" >> $GITHUB_OUTPUT
+          echo "Ore will NOT be installed (ore-setup: false)"
+        else
+          # auto mode: install if ore-install or bundler-cache is true
+          if [ "$ORE_INSTALL" = "true" ] || [ "$BUNDLER_CACHE" = "true" ]; then
+            echo "install-ore=true" >> $GITHUB_OUTPUT
+            echo "Ore will be installed (ore-setup: auto, ore-install or bundler-cache enabled)"
+          else
+            echo "install-ore=false" >> $GITHUB_OUTPUT
+            echo "Ore will NOT be installed (ore-setup: auto, no gem installation requested)"
+          fi
+        fi
+
     - name: Resolve ore version
-      if: steps.check-support.outputs.use-fallback != 'true' && (inputs.ore-install == 'true' || inputs.bundler-cache == 'true')
+      if: steps.check-support.outputs.use-fallback != 'true' && steps.should-install-ore.outputs.install-ore == 'true'
       id: ore-version
       shell: bash
       env:
@@ -896,7 +936,7 @@ runs:
         fi
 
     - name: Cache ore binary
-      if: steps.check-support.outputs.use-fallback != 'true' && (inputs.ore-install == 'true' || inputs.bundler-cache == 'true')
+      if: steps.check-support.outputs.use-fallback != 'true' && steps.should-install-ore.outputs.install-ore == 'true'
       id: cache-ore
       uses: actions/cache@v4
       with:
@@ -904,13 +944,13 @@ runs:
         key: setup-ruby-flash-ore-${{ steps.platform.outputs.platform }}-ruby-${{ steps.detect-ruby.outputs.version }}-${{ steps.ore-version.outputs.version }}-${{ steps.ore-version.outputs.build-from-source }}-gfgo-${{ steps.ore-version.outputs.gfgo-version }}
 
     - name: Setup Go toolchain for ore
-      if: steps.check-support.outputs.use-fallback != 'true' && (inputs.ore-install == 'true' || inputs.bundler-cache == 'true') && steps.cache-ore.outputs.cache-hit != 'true' && steps.ore-version.outputs.build-from-source == 'true'
+      if: steps.check-support.outputs.use-fallback != 'true' && steps.should-install-ore.outputs.install-ore == 'true' && steps.cache-ore.outputs.cache-hit != 'true' && steps.ore-version.outputs.build-from-source == 'true'
       uses: actions/setup-go@v5
       with:
         go-version: "stable"
 
     - name: Build ore from source
-      if: steps.check-support.outputs.use-fallback != 'true' && (inputs.ore-install == 'true' || inputs.bundler-cache == 'true') && steps.cache-ore.outputs.cache-hit != 'true' && steps.ore-version.outputs.build-from-source == 'true'
+      if: steps.check-support.outputs.use-fallback != 'true' && steps.should-install-ore.outputs.install-ore == 'true' && steps.cache-ore.outputs.cache-hit != 'true' && steps.ore-version.outputs.build-from-source == 'true'
       id: build-ore
       shell: bash
       run: |
@@ -1041,7 +1081,7 @@ runs:
         fi
 
     - name: Install ore from release
-      if: steps.check-support.outputs.use-fallback != 'true' && (inputs.ore-install == 'true' || inputs.bundler-cache == 'true') && steps.cache-ore.outputs.cache-hit != 'true' && steps.ore-version.outputs.build-from-source == 'false'
+      if: steps.check-support.outputs.use-fallback != 'true' && steps.should-install-ore.outputs.install-ore == 'true' && steps.cache-ore.outputs.cache-hit != 'true' && steps.ore-version.outputs.build-from-source == 'false'
       shell: bash
       run: |
         VERSION="${{ steps.ore-version.outputs.version }}"
@@ -1050,7 +1090,7 @@ runs:
         echo "Installed ore $VERSION"
 
     - name: Generate gem cache key
-      if: steps.check-support.outputs.use-fallback != 'true' && (inputs.ore-install == 'true' || inputs.bundler-cache == 'true')
+      if: steps.check-support.outputs.use-fallback != 'true' && steps.should-install-ore.outputs.install-ore == 'true'
       id: gem-cache-key
       shell: bash
       working-directory: ${{ inputs.working-directory }}
@@ -1087,7 +1127,7 @@ runs:
         echo "restore-keys=setup-ruby-flash-gems-${{ inputs.cache-version }}-${{ steps.platform.outputs.platform }}-ruby-${FULL_RUBY}-" >> $GITHUB_OUTPUT
 
     - name: Cache gems
-      if: steps.check-support.outputs.use-fallback != 'true' && (inputs.ore-install == 'true' || inputs.bundler-cache == 'true')
+      if: steps.check-support.outputs.use-fallback != 'true' && steps.should-install-ore.outputs.install-ore == 'true'
       id: cache-gems
       uses: actions/cache@v4
       with:
@@ -1098,7 +1138,7 @@ runs:
         restore-keys: ${{ steps.gem-cache-key.outputs.restore-keys }}
 
     - name: Install gems with ore
-      if: steps.check-support.outputs.use-fallback != 'true' && (inputs.ore-install == 'true' || inputs.bundler-cache == 'true')
+      if: steps.check-support.outputs.use-fallback != 'true' && steps.should-install-ore.outputs.install-ore == 'true' && (inputs.ore-install == 'true' || inputs.bundler-cache == 'true')
       id: install-gems
       shell: bash
       working-directory: ${{ inputs.working-directory }}
