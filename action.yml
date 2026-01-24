@@ -1181,8 +1181,9 @@ runs:
         fi
 
         echo "Running: $INSTALL_CMD"
+        echo "DEBUG: BUNDLE_GEMFILE=$BUNDLE_GEMFILE"
         START_TIME=$(date +%s)
-        $INSTALL_CMD
+        ORE_DEBUG=1 $INSTALL_CMD
         END_TIME=$(date +%s)
         ELAPSED=$((END_TIME - START_TIME))
         
@@ -1200,11 +1201,45 @@ runs:
         fi
         
         # Debug: Check what gems are in GEM_HOME after ore install
-        echo "==> Gems in $GEM_HOME after ore install:"
+        echo "==> Gems in $GEM_HOME/gems after ore install:"
         if [ -d "$GEM_HOME/gems" ]; then
           ls -1 "$GEM_HOME/gems" | head -20
         else
-          echo "  (gems directory still doesn't exist!)"
+          echo "  (gems directory doesn't exist!)"
+        fi
+
+        echo "==> Gemspecs in $GEM_HOME/specifications after ore install:"
+        if [ -d "$GEM_HOME/specifications" ]; then
+          ls -1 "$GEM_HOME/specifications" | head -20
+          echo "  Total gemspecs: $(ls -1 "$GEM_HOME/specifications" | wc -l)"
+        else
+          echo "  (specifications directory doesn't exist!)"
+        fi
+
+        # Verify Bundler can find all gems that ore installed
+        # If this fails, ore is broken - do NOT fall back to bundle install
+        echo "==> Running bundle check to verify ore installation..."
+        if ! bundle check; then
+          echo ""
+          echo "ERROR: bundle check failed after ore install!"
+          echo "This means ore did not install gems correctly."
+          echo "ore must install gems such that 'bundle exec' works without 'bundle install'."
+          echo ""
+          echo "==> Debug: Checking for specific gems from lockfile..."
+          # Show first few gems from lockfile and check if their gemspecs exist
+          if [ -f "$LOCKFILE" ]; then
+            echo "First 5 gems from lockfile:"
+            grep -E "^    [a-z]" "$LOCKFILE" | head -5 | while read -r line; do
+              gem_name=$(echo "$line" | sed 's/^ *//' | cut -d' ' -f1)
+              gem_version=$(echo "$line" | sed 's/^ *//' | cut -d'(' -f2 | cut -d')' -f1)
+              gemspec_file="$GEM_HOME/specifications/${gem_name}-${gem_version}.gemspec"
+              gem_dir="$GEM_HOME/gems/${gem_name}-${gem_version}"
+              echo "  $gem_name-$gem_version:"
+              echo "    gemspec exists: $([ -f "$gemspec_file" ] && echo 'YES' || echo 'NO') ($gemspec_file)"
+              echo "    gem dir exists: $([ -d "$gem_dir" ] && echo 'YES' || echo 'NO') ($gem_dir)"
+            done
+          fi
+          exit 1
         fi
 
         echo "ore-version=${{ steps.ore-version.outputs.version }}" >> $GITHUB_OUTPUT
