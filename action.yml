@@ -1159,6 +1159,14 @@ runs:
           echo "  (gems directory doesn't exist yet)"
         fi
 
+        # Debug: Check specific gems that might be needed by a lockfile
+        echo "==> Checking specific gems BEFORE ore install:"
+        for gem in kettle-dev-1.2.4 kettle-test-1.0.7 kettle-soup-cover-1.1.1 version_gem-1.1.9; do
+          echo "  $gem:"
+          echo "    gem dir: $([ -d "$GEM_HOME/gems/$gem" ] && echo 'EXISTS' || echo 'MISSING')"
+          echo "    gemspec: $([ -f "$GEM_HOME/specifications/$gem.gemspec" ] && echo 'EXISTS' || echo 'MISSING')"
+        done
+
         # Configure .gemrc to skip documentation if requested
         # This affects all gem installations including those done by Bundler/ore
         # Only create .gemrc if it doesn't already exist (don't override user's settings)
@@ -1215,6 +1223,14 @@ runs:
         else
           echo "  (specifications directory doesn't exist!)"
         fi
+
+        # Debug: Check specific gems AFTER ore install
+        echo "==> Checking specific gems AFTER ore install:"
+        for gem in kettle-dev-1.2.4 kettle-test-1.0.7 kettle-soup-cover-1.1.1 version_gem-1.1.9; do
+          echo "  $gem:"
+          echo "    gem dir: $([ -d "$GEM_HOME/gems/$gem" ] && echo 'EXISTS' || echo 'MISSING')"
+          echo "    gemspec: $([ -f "$GEM_HOME/specifications/$gem.gemspec" ] && echo 'EXISTS' || echo 'MISSING')"
+        done
 
         # Verify Bundler can find all gems that ore installed
         # If this fails, ore is broken - do NOT fall back to bundle install
