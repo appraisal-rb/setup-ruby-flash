@@ -263,10 +263,10 @@ runs:
           SUPPORTED_NUMERIC_VERSIONS="3.2 3.3 3.4 4.0"
           # Special versions and alternative implementations (e.g., head, jruby, truffleruby)
           SUPPORTED_SPECIAL_VERSIONS=""  # Empty for now, add versions as rv supports them (e.g., "head jruby truffleruby")
-          
+        
           # Default to fallback unless version is in allowlist
           USE_FALLBACK="true"
-          
+        
           # First check if it's a prefix match in special versions (head, jruby-*, truffleruby-*, etc.)
           if [ -n "$SUPPORTED_SPECIAL_VERSIONS" ]; then
             for allowed_version in $SUPPORTED_SPECIAL_VERSIONS; do
@@ -277,13 +277,13 @@ runs:
               fi
             done
           fi
-          
+        
           # If not found in special versions, check numeric versions
           if [ "$USE_FALLBACK" = "true" ]; then
             # Extract major.minor version (e.g., "3.4.1" -> "3.4")
             # Use || true to prevent exit on no match
             VERSION_PREFIX=$(echo "$RUBY_VERSION" | grep -oE '^[0-9]+\.[0-9]+' || true)
-            
+        
             if [ -n "$VERSION_PREFIX" ]; then
               for allowed_version in $SUPPORTED_NUMERIC_VERSIONS; do
                 if [ "$VERSION_PREFIX" = "$allowed_version" ]; then
@@ -294,7 +294,7 @@ runs:
               done
             fi
           fi
-          
+        
           # If still using fallback, show appropriate message
           if [ "$USE_FALLBACK" = "true" ]; then
             ALL_SUPPORTED="$SUPPORTED_NUMERIC_VERSIONS"
@@ -380,7 +380,7 @@ runs:
         if [ -n "${{ inputs.rv-git-ref }}" ]; then
           GIT_REF="${{ inputs.rv-git-ref }}"
           echo "build-from-source=true" >> $GITHUB_OUTPUT
-          
+        
           # Parse fork syntax: owner:ref or just ref
           if [[ "$GIT_REF" == *":"* ]]; then
             FORK_OWNER="${GIT_REF%%:*}"
@@ -390,7 +390,7 @@ runs:
             REPO="spinel-coop/rv"
             REF="$GIT_REF"
           fi
-          
+        
           # Resolve to commit SHA using GitHub API
           COMMIT_SHA=$(gh api "repos/$REPO/commits/$REF" --jq '.sha' 2>/dev/null || echo "$REF")
           VERSION="${COMMIT_SHA:0:12}"  # Use first 12 chars of SHA
@@ -567,7 +567,7 @@ runs:
         while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
           RETRY_COUNT=$((RETRY_COUNT + 1))
           echo "Attempt $RETRY_COUNT of $MAX_RETRIES..."
-          
+        
           if ~/.local/bin/rv ruby install "$RUBY_VERSION"; then
             END_TIME=$(date +%s)
             ELAPSED=$((END_TIME - START_TIME))
@@ -886,7 +886,7 @@ runs:
         if [ -n "${{ inputs.ore-git-ref }}" ]; then
           GIT_REF="${{ inputs.ore-git-ref }}"
           echo "build-from-source=true" >> $GITHUB_OUTPUT
-          
+        
           # Parse fork syntax: owner:ref or just ref
           if [[ "$GIT_REF" == *":"* ]]; then
             FORK_OWNER="${GIT_REF%%:*}"
@@ -896,7 +896,7 @@ runs:
             REPO="contriboss/ore-light"
             REF="$GIT_REF"
           fi
-          
+        
           # Resolve to commit SHA using GitHub API
           COMMIT_SHA=$(gh api "repos/$REPO/commits/$REF" --jq '.sha' 2>/dev/null || echo "$REF")
           VERSION="${COMMIT_SHA:0:12}"  # Use first 12 chars of SHA
@@ -915,7 +915,7 @@ runs:
         # Also resolve gfgo-git-ref if specified (affects ore cache key)
         if [ -n "${{ inputs.gfgo-git-ref }}" ]; then
           GFGO_REF="${{ inputs.gfgo-git-ref }}"
-          
+        
           # Parse fork syntax: owner:ref or just ref
           if [[ "$GFGO_REF" == *":"* ]]; then
             GFGO_FORK_OWNER="${GFGO_REF%%:*}"
@@ -925,7 +925,7 @@ runs:
             GFGO_REPO="contriboss/gemfile-go"
             GFGO_REF_NAME="$GFGO_REF"
           fi
-          
+        
           # Resolve to commit SHA
           GFGO_SHA=$(gh api "repos/$GFGO_REPO/commits/$GFGO_REF_NAME" --jq '.sha' 2>/dev/null || echo "$GFGO_REF")
           GFGO_VERSION="${GFGO_SHA:0:12}"
@@ -1016,7 +1016,7 @@ runs:
         if [[ -n "$GFGO_GIT_REF" ]]; then
           echo "Building with gemfile-go from source (git ref: $GFGO_GIT_REF)..."
           GFGO_START_TIME=$(date +%s)
-          
+        
           # Parse gemfile-go fork syntax
           if [[ "$GFGO_GIT_REF" == *":"* ]]; then
             GFGO_FORK_OWNER="${GFGO_GIT_REF%%:*}"
@@ -1048,7 +1048,7 @@ runs:
           go work use /tmp/gemfile-go-build
           echo "go.work created successfully"
           cat go.work
-          
+        
           GFGO_END_TIME=$(date +%s)
           GFGO_ELAPSED=$((GFGO_END_TIME - GFGO_START_TIME))
           echo "gfgo-build-time=$GFGO_ELAPSED" >> $GITHUB_OUTPUT
@@ -1231,6 +1231,10 @@ runs:
           echo "    gem dir: $([ -d "$GEM_HOME/gems/$gem" ] && echo 'EXISTS' || echo 'MISSING')"
           echo "    gemspec: $([ -f "$GEM_HOME/specifications/$gem.gemspec" ] && echo 'EXISTS' || echo 'MISSING')"
         done
+
+        # Run ore info --debug on a failing gem to get detailed diagnostics
+        echo "==> Running ore info --debug for detailed diagnostics..."
+        ore info --debug --version 1.2.4 kettle-dev || true
 
         # Verify Bundler can find all gems that ore installed
         # If this fails, ore is broken - do NOT fall back to bundle install
