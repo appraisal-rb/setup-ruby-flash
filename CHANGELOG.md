@@ -5,11 +5,15 @@
 ### Added
 
 - **bundler-cache Input**: New `bundler-cache` input for seamless compatibility with ruby/setup-ruby
-  - Acts as an alias for `ore-install` - both enable gem caching and installation
+  - Uses `rv clean-install` for modern Ruby versions supported by setup-ruby-flash
+  - Retries Bundler lockfile generation and rv gem installation without changing Gemfile sources
   - Allows true drop-in replacement: just change action name, keep all inputs the same
   - When using fallback to ruby/setup-ruby, `bundler-cache` is passed through directly
   - Perfect for migrating from ruby/setup-ruby with zero workflow changes
-  - Can be used interchangeably with `ore-install` based on preference
+
+- **gem-install-retries Input**: New `gem-install-retries` input controls retry attempts for dependency resolution and gem installation
+  - Defaults to `4`
+  - Retries keep the configured Gemfile sources, avoiding fallback to alternate gem hosts
 
 - **Automatic Fallback to ruby/setup-ruby**: setup-ruby-flash now automatically falls back to [ruby/setup-ruby](https://github.com/ruby/setup-ruby) for unsupported Ruby versions and implementations
   - Automatically detects Ruby version < 3.2 (2.7, 3.0, 3.1, etc.) and uses ruby/setup-ruby
@@ -63,6 +67,10 @@
   - See `ELAPSED_TIME_TRACKING.md` for comprehensive documentation
 
 ### Changed
+
+- **Bundler Cache Fast Path**: `bundler-cache` no longer implies ore
+  - Modern Ruby versions install gems through rv's native `clean-install`
+  - `ore-install` remains available as an explicit ore integration path
 
 - **Version Detection Logic**: Enhanced with dual-allowlist approach for maximum flexibility
   - `SUPPORTED_NUMERIC_VERSIONS="3.2 3.3 3.4 4.0"` for MRI versions (major.minor format)

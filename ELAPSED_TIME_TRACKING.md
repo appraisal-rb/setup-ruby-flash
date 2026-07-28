@@ -42,11 +42,11 @@ setup-ruby-flash now tracks elapsed time for all major build and install operati
 **When tracked:** Only when `ore-git-ref` is set and ore is built from source
 
 ### 6. Gem Installation
-**Step:** `Install gems with ore`  
-**Output:** Displayed in summary as "Gem Install Time"  
-**Includes:** ore install command execution
+**Step:** `Install gems with rv` or `Install gems with ore`
+**Output:** Displayed in summary as "Gem Install Time"
+**Includes:** `rv clean-install` for `bundler-cache`, or `ore install` for the explicit ore path
 
-**When tracked:** Always when `ore-install: true` or `bundler-cache: true`
+**When tracked:** Always when `bundler-cache: true` or `ore-install: true`
 
 ### 7. Fallback Setup (ruby/setup-ruby)
 **Steps:** `Start fallback timer` → `Setup Ruby with ruby/setup-ruby` → `End fallback timer`  
@@ -59,7 +59,7 @@ setup-ruby-flash now tracks elapsed time for all major build and install operati
 
 All timing information is displayed in the GitHub Actions step summary:
 
-### Fast Path (rv + ore)
+### Fast Path (rv + gem installation)
 
 ```markdown
 ### setup-ruby-flash Summary ⚡
@@ -70,7 +70,7 @@ All timing information is displayed in the GitHub Actions step summary:
 | RubyGems Version | 3.5.0 |
 | Bundler Version | 2.5.0 |
 | rv Version | 0.4.1 |
-| ore Version | 0.18.0 |
+| Gem Manager | rv clean-install |
 | Platform | linux-amd64 |
 | Gem Cache Hit | false |
 | rv Install Time | 2s |

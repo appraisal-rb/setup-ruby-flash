@@ -94,12 +94,15 @@ I've summarized my thoughts in [this blog post](https://dev.to/galtzo/hostile-ta
 - uses: appraisal-rb/setup-ruby-flash@v1
   with:
     ruby-version: "3.4"
-    ore-install: true
+    bundler-cache: true
 ```
 
 ### With Bundler Cache (ruby/setup-ruby compatible)
 
-For easy migration from ruby/setup-ruby, use `bundler-cache` (works the same as `ore-install`):
+For easy migration from ruby/setup-ruby, use `bundler-cache`. On modern Ruby
+versions this installs gems with `rv clean-install`, caches `vendor/bundle`,
+and retries dependency resolution and installation without changing Gemfile
+sources.
 
 ```yaml
 - uses: appraisal-rb/setup-ruby-flash@v1
@@ -137,7 +140,7 @@ When `ruby-version` is set to `default` (the default), setup-ruby-flash reads fr
 ```yaml
 - uses: appraisal-rb/setup-ruby-flash@v1
   with:
-    ore-install: true
+    bundler-cache: true
 ```
 
 ## Inputs
@@ -147,9 +150,9 @@ When `ruby-version` is set to `default` (the default), setup-ruby-flash reads fr
 | `ruby-version`         | Ruby version to install (e.g., `3.4`, `3.4.1`). Use `ruby` for latest stable version, or `default` to read from version files. | `default`             |
 | `rubygems`             | RubyGems version: `default`, `latest`, or a version number (e.g., `3.5.0`)                                                     | `default`             |
 | `bundler`              | Bundler version: `Gemfile.lock`, `default`, `latest`, `none`, or a version number                                              | `Gemfile.lock`        |
-| `ore-setup`            | Install ore binary: `true`, `false`, or `auto` (installs if `ore-install` or `bundler-cache` is enabled)                       | `auto`                |
+| `ore-setup`            | Install ore binary: `true`, `false`, or `auto` (installs if `ore-install` is enabled)                                          | `auto`                |
 | `ore-install`          | Run `ore install` command to install gems from lockfile (requires ore to be installed)                                         | `false`               |
-| `bundler-cache`        | Enable Bundler caching (alias for `ore-install` for compatibility with ruby/setup-ruby)                                        | `false`               |
+| `bundler-cache`        | Enable gem caching and installation for ruby/setup-ruby compatibility; modern Ruby versions use `rv clean-install`             | `false`               |
 | `working-directory`    | Directory for version files and Gemfile                                                                                        | `.`                   |
 | `cache-version`        | Cache version string for invalidation                                                                                          | `v1`                  |
 | `rv-version`           | Version of rv to install (ignored if `rv-git-ref` is set)                                                                      | `latest`              |
@@ -160,6 +163,7 @@ When `ruby-version` is set to `default` (the default), setup-ruby-flash reads fr
 | `skip-extensions`      | Skip building native extensions                                                                                                | `false`               |
 | `without-groups`       | Gem groups to exclude (comma-separated)                                                                                        | `''`                  |
 | `ruby-install-retries` | Number of retry attempts for Ruby installation (with exponential backoff)                                                      | `3`                   |
+| `gem-install-retries`  | Number of retry attempts for dependency resolution and gem installation                                                        | `4`                   |
 | `no-document`          | Skip generating documentation (ri/rdoc) for installed gems. Creates `~/.gemrc` with `gem: --no-document` if file doesn't exist | `true`                |
 | `use-setup-ruby`       | Force fallback to ruby/setup-ruby for specific versions. Accepts single value or array: `'3.4'` or `['3.4', '4.0']`           | `''`                  |
 | `use-setup-ruby-flash` | Force use of setup-ruby-flash for specific versions. Accepts single value or array: `'head'` or `['head', 'jruby']`           | `''`                  |
@@ -423,15 +427,13 @@ setup-ruby-flash is a true drop-in replacement for `ruby/setup-ruby`. Simply cha
     bundler-cache: true  # Works exactly the same
 - run: bundle exec rake test
 
-# Or use ore-install for the same behavior (with ore instead of bundler)
+# Or explicitly use ore-install when testing the ore integration
 - uses: appraisal-rb/setup-ruby-flash@v1
   with:
     ruby-version: "3.4"
-    ore-install: true  # Uses ore (faster gem installation)
+    ore-install: true
 - run: bundle exec rake test
 ```
-
-**Note**: `bundler-cache` and `ore-install` are aliases - both enable gem caching and installation. Use whichever you prefer.
 
 
 ### With Latest RubyGems and Bundler

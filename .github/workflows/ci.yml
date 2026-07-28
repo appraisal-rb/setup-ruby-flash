@@ -111,6 +111,47 @@ jobs:
           echo "==> Smoke a Rake"
           bundle exec rake -T
 
+  # Test the action with rv clean-install gem installation
+  test-action-with-bundler-cache:
+    name: Action + rv clean-install (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    env:
+      BUNDLE_GEMFILE: TestGemfile
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Create test Gemfile
+        run: |
+          cat > ${{ env.BUNDLE_GEMFILE }} << 'EOF'
+          source 'https://gem.coop'
+          gem 'rake'
+          EOF
+
+      - name: Run setup-ruby-flash with bundler-cache
+        uses: ./
+        with:
+          ruby-version: '4.0'
+          bundler-cache: true
+          cache-version: 'v3'
+          gem-install-retries: '4'
+          # Need GH Token Authenticated requests, switch once the feature is released
+          rv-git-ref: 'main'
+
+      - name: Verify Bundler installation
+        run: |
+          echo "==> Ruby version:"
+          ruby --version
+          echo "==> Bundler version:"
+          bundle --version
+          echo "==> Bundle check:"
+          bundle check --gemfile "$BUNDLE_GEMFILE"
+          echo "==> Smoke a Rake:"
+          bundle exec rake -T
+
   # Test the action with ore gem installation (Compiled Extensions)
   test-action-with-ore-compiled:
     name: Action + Ore Test Compiled Gems (${{ matrix.os }})

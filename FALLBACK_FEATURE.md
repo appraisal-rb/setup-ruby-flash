@@ -209,7 +209,7 @@ Simply replace the action name - no other changes needed:
 - uses: appraisal-rb/setup-ruby-flash@v1
   with:
     ruby-version: '3.3'
-    bundler-cache: true  # or ore-install: true for even faster installs
+    bundler-cache: true
 ```
 
 ### Matrix Builds
@@ -229,7 +229,7 @@ No changes needed - just replace the action:
 - uses: appraisal-rb/setup-ruby-flash@v1
   with:
     ruby-version: ${{ matrix.ruby }}
-    bundler-cache: true  # or ore-install: true
+    bundler-cache: true
 ```
 
 ## Performance Comparison
@@ -284,16 +284,19 @@ matrix:
   ruby: ['3.2', '3.3', '3.4']  # No fallback needed
 ```
 
-### Does fallback work with ore-install?
+### Does fallback work with gem installation?
 
-oWhen fallback occurs, both `ore-install` and `bundler-cache` are converted to `bundler-cache: true` and passed to ruby/setup-ruby. This ensures compatibility.
+When fallback occurs, both `ore-install` and `bundler-cache` are converted to
+`bundler-cache: true` and passed to ruby/setup-ruby. This ensures compatibility
+for Ruby versions and engines that rv does not support.
 
 ### What's the difference between ore-install and bundler-cache?
 
-They're aliases - both enable gem caching and installation:
-- **Fast path (Ruby 3.2+)**: Both use ore for gem installation
-- **Fallback path**: Both convert to `bundler-cache: true` for ruby/setup-ruby
-- Use whichever name you prefer for clarity in your workflows
+They both enable gem installation, but they are not aliases:
+- **Fast path (Ruby 3.2+)**: `bundler-cache` uses rv's native
+  `clean-install` with gem caching and retries
+- **Ore path**: `ore-install` explicitly installs ore and runs `ore install`
+- **Fallback path**: both convert to `bundler-cache: true` for ruby/setup-ruby
 
 ## Implementation Details
 

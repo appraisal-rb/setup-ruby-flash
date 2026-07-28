@@ -38,7 +38,7 @@ inputs:
     description: |
       Install ore (the gem manager) in the environment.
       Either 'true', 'false', or 'auto' (default).
-      When 'auto', ore is installed if ore-install or bundler-cache is true.
+      When 'auto', ore is installed if ore-install is true.
       When 'true', ore is always installed even if ore-install is false.
       When 'false', ore is never installed.
       Use 'true' when you want ore available but will run ore commands manually.
@@ -49,17 +49,16 @@ inputs:
     description: |
       Run "ore install" command to install gems from lockfile.
       Either 'true' or 'false'.
-      Note: Requires ore-setup to be 'true' or 'auto' (with bundler-cache enabled).
+      Note: Requires ore-setup to be 'true' or 'auto' (with ore-install enabled).
       When false, gems are not installed automatically, but ore will still be available if ore-setup is true.
     required: false
     default: "false"
 
   bundler-cache:
     description: |
-      Enable Bundler caching (alias for ore-install for ruby/setup-ruby compatibility).
-      When true, acts the same as ore-install: true.
+      Enable gem caching and installation for ruby/setup-ruby compatibility.
+      Modern Ruby versions use rv clean-install; fallback versions pass this through to ruby/setup-ruby.
       Either 'true' or 'false'.
-      Note: When using fallback to ruby/setup-ruby, this is passed through directly.
     required: false
     default: "false"
 
@@ -138,6 +137,13 @@ inputs:
       Uses exponential backoff between retries.
     required: false
     default: "3"
+
+  gem-install-retries:
+    description: |
+      Number of retry attempts for dependency resolution and gem installation.
+      Retries use the configured Gemfile source and do not switch sources.
+    required: false
+    default: "4"
 
   no-document:
     description: |
@@ -867,7 +873,9 @@ runs:
         ORE_INSTALL="${{ inputs.ore-install }}"
         BUNDLER_CACHE="${{ inputs.bundler-cache }}"
         
-        # Determine if ore should be installed
+        # Determine if ore should be installed. bundler-cache uses rv's native
+        # clean-install path by default; ore remains opt-in through ore-install
+        # or explicit ore-setup.
         if [ "$ORE_SETUP" = "true" ]; then
           echo "install-ore=true" >> $GITHUB_OUTPUT
           echo "Ore will be installed (ore-setup: true)"
@@ -875,18 +883,153 @@ runs:
           echo "install-ore=false" >> $GITHUB_OUTPUT
           echo "Ore will NOT be installed (ore-setup: false)"
         else
-          # auto mode: install if ore-install or bundler-cache is true
-          if [ "$ORE_INSTALL" = "true" ] || [ "$BUNDLER_CACHE" = "true" ]; then
+          # auto mode: install if ore-install is true
+          if [ "$ORE_INSTALL" = "true" ]; then
             echo "install-ore=true" >> $GITHUB_OUTPUT
-            echo "Ore will be installed (ore-setup: auto, ore-install or bundler-cache enabled)"
+            echo "Ore will be installed (ore-setup: auto, ore-install enabled)"
           else
             echo "install-ore=false" >> $GITHUB_OUTPUT
-            echo "Ore will NOT be installed (ore-setup: auto, no gem installation requested)"
+            echo "Ore will NOT be installed (ore-setup: auto, ore-install not enabled)"
           fi
         fi
 
+    - name: Generate Bundler gem cache key
+      if: steps.check-support.outputs.use-fallback != 'true' && inputs.bundler-cache == 'true' && inputs.ore-install != 'true'
+      id: bundler-gem-cache-key
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        if [ -n "${BUNDLE_GEMFILE:-}" ]; then
+          GEMFILE="$BUNDLE_GEMFILE"
+          LOCKFILE="${BUNDLE_GEMFILE}.lock"
+        else
+          GEMFILE="Gemfile"
+          LOCKFILE="Gemfile.lock"
+        fi
+
+        if [ -f "$LOCKFILE" ]; then
+          CACHE_HASH=$(sha256sum "$LOCKFILE" | awk '{print $1}' | cut -c1-12)
+          echo "Using lockfile for cache key: $LOCKFILE (hash: $CACHE_HASH)"
+        elif [ -f "$GEMFILE" ]; then
+          CACHE_HASH=$(sha256sum "$GEMFILE" | awk '{print $1}' | cut -c1-12)
+          echo "No lockfile found; using Gemfile for cache key: $GEMFILE (hash: $CACHE_HASH)"
+        else
+          CACHE_HASH="no-gemfile"
+          echo "No Gemfile or lockfile found for cache key"
+        fi
+
+        FULL_RUBY="${{ steps.setup.outputs.ruby-full-version }}"
+        CACHE_KEY="setup-ruby-flash-bundler-gems-${{ inputs.cache-version }}-${{ steps.platform.outputs.platform }}-ruby-${FULL_RUBY}-${CACHE_HASH}"
+        echo "key=$CACHE_KEY" >> $GITHUB_OUTPUT
+        echo "restore-keys=setup-ruby-flash-bundler-gems-${{ inputs.cache-version }}-${{ steps.platform.outputs.platform }}-ruby-${FULL_RUBY}-" >> $GITHUB_OUTPUT
+
+    - name: Cache Bundler gems
+      if: steps.check-support.outputs.use-fallback != 'true' && inputs.bundler-cache == 'true' && inputs.ore-install != 'true'
+      id: cache-bundler-gems
+      uses: actions/cache@v4
+      with:
+        path: ${{ inputs.working-directory }}/vendor/bundle
+        key: ${{ steps.bundler-gem-cache-key.outputs.key }}
+        restore-keys: ${{ steps.bundler-gem-cache-key.outputs.restore-keys }}
+
+    - name: Install gems with rv
+      if: steps.check-support.outputs.use-fallback != 'true' && inputs.bundler-cache == 'true' && inputs.ore-install != 'true'
+      id: install-bundler-gems
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        if [ "${{ inputs.no-document }}" = "true" ] && [ ! -f ~/.gemrc ]; then
+          echo "gem: --no-document" > ~/.gemrc
+        fi
+
+        if [ -n "${BUNDLE_GEMFILE:-}" ]; then
+          GEMFILE="$BUNDLE_GEMFILE"
+          LOCKFILE="${BUNDLE_GEMFILE}.lock"
+        else
+          GEMFILE="Gemfile"
+          LOCKFILE="Gemfile.lock"
+        fi
+
+        MAX_RETRIES=${{ inputs.gem-install-retries }}
+        case "$MAX_RETRIES" in
+          ''|*[!0-9]*)
+            echo "::error::gem-install-retries must be a positive integer"
+            exit 1
+            ;;
+        esac
+        if [ "$MAX_RETRIES" -lt 1 ]; then
+          echo "::error::gem-install-retries must be a positive integer"
+          exit 1
+        fi
+
+        RETRY_COUNT=0
+        BACKOFF=5
+        START_TIME=$(date +%s)
+
+        run_with_retries() {
+          local label="$1"
+          shift
+          RETRY_COUNT=0
+          BACKOFF=5
+          while [ "$RETRY_COUNT" -lt "$MAX_RETRIES" ]; do
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+            echo "$label attempt $RETRY_COUNT of $MAX_RETRIES..."
+            if "$@"; then
+              return 0
+            fi
+            if [ "$RETRY_COUNT" -lt "$MAX_RETRIES" ]; then
+              echo "::warning::$label failed (attempt $RETRY_COUNT/$MAX_RETRIES). Retrying in ${BACKOFF}s without changing Gemfile sources..."
+              sleep "$BACKOFF"
+              BACKOFF=$((BACKOFF * 2))
+            fi
+          done
+          echo "::error::$label failed after $MAX_RETRIES attempts"
+          return 1
+        }
+
+        if [ ! -f "$LOCKFILE" ]; then
+          echo "Lockfile $LOCKFILE not found; generating it with Bundler before rv clean-install."
+          run_with_retries "bundle lock" bundle lock --gemfile "$GEMFILE"
+        fi
+
+        export BUNDLE_PATH=vendor/bundle
+        echo "BUNDLE_PATH=vendor/bundle" >> "$GITHUB_ENV"
+        run_with_retries "rv clean-install" ~/.local/bin/rv ci --gemfile "$GEMFILE"
+
+        if ! bundle check --gemfile "$GEMFILE" >/dev/null 2>&1; then
+          echo "::error::bundle check failed after rv clean-install"
+          bundle check --gemfile "$GEMFILE" || true
+          exit 1
+        fi
+
+        END_TIME=$(date +%s)
+        ELAPSED=$((END_TIME - START_TIME))
+        echo "cache-hit=${{ steps.cache-bundler-gems.outputs.cache-hit }}" >> $GITHUB_OUTPUT
+
+        RUBYGEMS_VERSION="${{ steps.configure-rubygems.outputs.version }}"
+        if [ -z "$RUBYGEMS_VERSION" ]; then
+          RUBYGEMS_VERSION="${{ steps.setup.outputs.gem-version }}"
+        fi
+        BUNDLER_VERSION="${{ steps.install-bundler.outputs.version }}"
+        if [ -z "$BUNDLER_VERSION" ]; then
+          BUNDLER_VERSION=$(bundle --version 2>/dev/null | awk '{print $NF}' || echo "default")
+        fi
+
+        echo "### setup-ruby-flash Summary ⚡" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "| Component | Value |" >> $GITHUB_STEP_SUMMARY
+        echo "|-----------|-------|" >> $GITHUB_STEP_SUMMARY
+        echo "| Ruby Version | ${{ steps.detect-ruby.outputs.version }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| RubyGems Version | $RUBYGEMS_VERSION |" >> $GITHUB_STEP_SUMMARY
+        echo "| Bundler Version | $BUNDLER_VERSION |" >> $GITHUB_STEP_SUMMARY
+        echo "| rv Version | ${{ steps.rv-version.outputs.version }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Gem Manager | rv clean-install |" >> $GITHUB_STEP_SUMMARY
+        echo "| Platform | ${{ steps.platform.outputs.platform }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Gem Cache Hit | ${{ steps.cache-bundler-gems.outputs.cache-hit }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Gem Install Time | ${ELAPSED}s |" >> $GITHUB_STEP_SUMMARY
+
     - name: Generate summary (Ruby only)
-      if: steps.check-support.outputs.use-fallback != 'true' && steps.should-install-ore.outputs.install-ore != 'true'
+      if: steps.check-support.outputs.use-fallback != 'true' && steps.should-install-ore.outputs.install-ore != 'true' && inputs.bundler-cache != 'true'
       shell: bash
       run: |
         RUBYGEMS_VERSION="${{ steps.configure-rubygems.outputs.version }}"
@@ -1183,7 +1326,7 @@ runs:
         restore-keys: ${{ steps.gem-cache-key.outputs.restore-keys }}
 
     - name: Install gems with ore
-      if: steps.check-support.outputs.use-fallback != 'true' && steps.should-install-ore.outputs.install-ore == 'true' && (inputs.ore-install == 'true' || inputs.bundler-cache == 'true')
+      if: steps.check-support.outputs.use-fallback != 'true' && steps.should-install-ore.outputs.install-ore == 'true' && inputs.ore-install == 'true'
       id: install-gems
       shell: bash
       working-directory: ${{ inputs.working-directory }}
