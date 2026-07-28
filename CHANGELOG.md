@@ -4,6 +4,12 @@
 
 ### Added
 
+- **Appraisal Setup Inputs**: setup-ruby-flash can now install trusted pre-bundle gems, prepare an appraisal root Gemfile, cache appraisal gems, and retry `appraisal2` installs
+  - `pre-bundle-gems` and `pre-appraisal-root-gemfile-gems` accept newline-separated `gem install` argument lines
+  - `appraisal-name` runs `bundle exec appraisal <name> install` when provided
+  - `main-bundle-install: false` skips the main Gemfile install for appraisal-only workflows
+  - `appraisal-install-retries` defaults to `2` and retries without changing configured Gemfile sources
+
 - **Ruby Summary Detail**: Workflow summaries now show the installed Ruby patch version when it differs from the selected Ruby line
   - Summary headings include the setup-ruby-flash action version when it can be resolved at runtime
   - rv fast-path summaries show values like `4.0 (4.0.6)`

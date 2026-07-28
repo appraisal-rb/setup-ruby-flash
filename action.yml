@@ -62,6 +62,15 @@ inputs:
     required: false
     default: "false"
 
+  main-bundle-install:
+    description: |
+      Control setup-ruby-flash installation of the main Gemfile bundle.
+      Use 'false' for appraisal-only workflows that do not need the main bundle installed.
+      'auto' installs the main bundle when bundler-cache or ore-install requests it.
+      Accepted values: 'auto', 'true', 'false'.
+    required: false
+    default: "auto"
+
   working-directory:
     description: |
       Working directory for resolving version files (.ruby-version, etc.) and Gemfile.
@@ -144,6 +153,49 @@ inputs:
       Retries use the configured Gemfile source and do not switch sources.
     required: false
     default: "4"
+
+  pre-bundle-gems:
+    description: |
+      Newline-separated argument lines passed to `gem install` before setup-ruby-flash installs the main Gemfile bundle.
+      This is trusted workflow configuration, not a shell command list.
+      Example line: `nomono -v 1.1.0 --source https://gem.coop`
+    required: false
+    default: ""
+
+  pre-appraisal-root-gemfile-gems:
+    description: |
+      Newline-separated argument lines passed to `gem install` before setup-ruby-flash installs the appraisal root Gemfile.
+      This is trusted workflow configuration, not a shell command list.
+      Use this for Bundler plugins or unreleased tools required while evaluating the appraisal root Gemfile.
+    required: false
+    default: ""
+
+  appraisal-root-gemfile:
+    description: |
+      Root Gemfile used to run appraisal2 setup when appraisal-name is provided.
+    required: false
+    default: "Appraisal.root.gemfile"
+
+  appraisal-name:
+    description: |
+      Appraisal name to install with `bundle exec appraisal <name> install`.
+      When empty, appraisal setup is skipped.
+    required: false
+    default: ""
+
+  appraisal-cache:
+    description: |
+      Cache gems installed while preparing the appraisal root Gemfile and selected appraisal.
+      Either 'true' or 'false'.
+    required: false
+    default: "true"
+
+  appraisal-install-retries:
+    description: |
+      Number of retry attempts for appraisal root bundle install and appraisal install.
+      Retries use the configured Gemfile sources and do not switch sources.
+    required: false
+    default: "2"
 
   no-document:
     description: |
@@ -385,7 +437,7 @@ runs:
         ruby-version: ${{ inputs.ruby-version }}
         rubygems: ${{ inputs.rubygems }}
         bundler: ${{ inputs.bundler }}
-        bundler-cache: ${{ inputs.bundler-cache == 'true' || inputs.ore-install == 'true' }}
+        bundler-cache: ${{ (inputs.bundler-cache == 'true' || inputs.ore-install == 'true' || inputs.main-bundle-install == 'true') && inputs.main-bundle-install != 'false' && inputs.pre-bundle-gems == '' && inputs.appraisal-name == '' && inputs.pre-appraisal-root-gemfile-gems == '' }}
         working-directory: ${{ inputs.working-directory }}
         cache-version: ${{ inputs.cache-version }}
 
@@ -925,6 +977,33 @@ runs:
           echo "version=$INSTALLED_VERSION" >> $GITHUB_OUTPUT
         fi
 
+    - name: Install pre-bundle gems
+      if: inputs.pre-bundle-gems != ''
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        if [ "${{ inputs.no-document }}" = "true" ] && [ ! -f ~/.gemrc ]; then
+          echo "gem: --no-document" > ~/.gemrc
+        fi
+
+        DOC_FLAG=""
+        if [ "${{ inputs.no-document }}" = "true" ]; then
+          DOC_FLAG="--no-document"
+        fi
+
+        set -f
+        while IFS= read -r gem_args || [ -n "$gem_args" ]; do
+          gem_args="${gem_args#"${gem_args%%[![:space:]]*}"}"
+          gem_args="${gem_args%"${gem_args##*[![:space:]]}"}"
+          case "$gem_args" in
+            ""|\#*) continue ;;
+          esac
+          echo "Installing pre-bundle gem with arguments: $gem_args"
+          gem install $gem_args $DOC_FLAG
+        done <<'SETUP_RUBY_FLASH_PRE_BUNDLE_GEMS'
+        ${{ inputs.pre-bundle-gems }}
+        SETUP_RUBY_FLASH_PRE_BUNDLE_GEMS
+
     - name: Determine if ore should be installed
       if: steps.check-support.outputs.use-fallback != 'true'
       id: should-install-ore
@@ -955,7 +1034,7 @@ runs:
         fi
 
     - name: Generate Bundler gem cache key
-      if: steps.check-support.outputs.use-fallback != 'true' && inputs.bundler-cache == 'true' && inputs.ore-install != 'true'
+      if: steps.check-support.outputs.use-fallback != 'true' && inputs.ore-install != 'true' && inputs.main-bundle-install != 'false' && (inputs.bundler-cache == 'true' || inputs.main-bundle-install == 'true')
       id: bundler-gem-cache-key
       shell: bash
       working-directory: ${{ inputs.working-directory }}
@@ -985,7 +1064,7 @@ runs:
         echo "restore-keys=setup-ruby-flash-bundler-gems-${{ inputs.cache-version }}-${{ steps.platform.outputs.platform }}-ruby-${FULL_RUBY}-" >> $GITHUB_OUTPUT
 
     - name: Cache Bundler gems
-      if: steps.check-support.outputs.use-fallback != 'true' && inputs.bundler-cache == 'true' && inputs.ore-install != 'true'
+      if: steps.check-support.outputs.use-fallback != 'true' && inputs.ore-install != 'true' && inputs.main-bundle-install != 'false' && (inputs.bundler-cache == 'true' || inputs.main-bundle-install == 'true')
       id: cache-bundler-gems
       uses: actions/cache@v4
       with:
@@ -994,7 +1073,7 @@ runs:
         restore-keys: ${{ steps.bundler-gem-cache-key.outputs.restore-keys }}
 
     - name: Install gems with rv
-      if: steps.check-support.outputs.use-fallback != 'true' && inputs.bundler-cache == 'true' && inputs.ore-install != 'true'
+      if: steps.check-support.outputs.use-fallback != 'true' && inputs.ore-install != 'true' && inputs.main-bundle-install != 'false' && (inputs.bundler-cache == 'true' || inputs.main-bundle-install == 'true')
       id: install-bundler-gems
       shell: bash
       working-directory: ${{ inputs.working-directory }}
@@ -1088,6 +1167,153 @@ runs:
         echo "| Platform | ${{ steps.platform.outputs.platform }} |" >> $GITHUB_STEP_SUMMARY
         echo "| Gem Cache Hit | ${{ steps.cache-bundler-gems.outputs.cache-hit }} |" >> $GITHUB_STEP_SUMMARY
         echo "| Gem Install Time | ${ELAPSED}s |" >> $GITHUB_STEP_SUMMARY
+
+    - name: Install gems with Bundler (compatibility path)
+      if: steps.check-support.outputs.use-fallback == 'true' && inputs.main-bundle-install != 'false' && (inputs.bundler-cache == 'true' || inputs.ore-install == 'true' || inputs.main-bundle-install == 'true') && (inputs.pre-bundle-gems != '' || inputs.appraisal-name != '' || inputs.pre-appraisal-root-gemfile-gems != '')
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        if [ "${BUNDLE_GEMFILE:-}" = "" ]; then
+          GEMFILE="Gemfile"
+        else
+          GEMFILE="$BUNDLE_GEMFILE"
+        fi
+
+        MAX_RETRIES=${{ inputs.gem-install-retries }}
+        case "$MAX_RETRIES" in
+          ''|*[!0-9]*)
+            echo "::error::gem-install-retries must be a positive integer"
+            exit 1
+            ;;
+        esac
+        if [ "$MAX_RETRIES" -lt 1 ]; then
+          echo "::error::gem-install-retries must be a positive integer"
+          exit 1
+        fi
+
+        RETRY_COUNT=0
+        BACKOFF=5
+        while [ "$RETRY_COUNT" -lt "$MAX_RETRIES" ]; do
+          RETRY_COUNT=$((RETRY_COUNT + 1))
+          echo "bundle install attempt $RETRY_COUNT of $MAX_RETRIES for $GEMFILE..."
+          bundle config set --local path vendor/bundle
+          if bundle install --gemfile "$GEMFILE" --jobs 4; then
+            exit 0
+          fi
+          if [ "$RETRY_COUNT" -lt "$MAX_RETRIES" ]; then
+            echo "::warning::bundle install failed (attempt $RETRY_COUNT/$MAX_RETRIES). Retrying in ${BACKOFF}s without changing Gemfile sources..."
+            sleep "$BACKOFF"
+            BACKOFF=$((BACKOFF * 2))
+          fi
+        done
+        echo "::error::bundle install failed after $MAX_RETRIES attempts"
+        exit 1
+
+    - name: Generate appraisal gem cache key
+      if: inputs.appraisal-name != '' && inputs.appraisal-cache == 'true'
+      id: appraisal-gem-cache-key
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        ROOT_GEMFILE="${{ inputs.appraisal-root-gemfile }}"
+        HASH_INPUTS=()
+        [ -f "$ROOT_GEMFILE" ] && HASH_INPUTS+=("$ROOT_GEMFILE")
+        [ -f "${ROOT_GEMFILE}.lock" ] && HASH_INPUTS+=("${ROOT_GEMFILE}.lock")
+        [ -f "Appraisals" ] && HASH_INPUTS+=("Appraisals")
+        while IFS= read -r path; do
+          HASH_INPUTS+=("$path")
+        done < <(find gemfiles -type f \( -name '*.gemfile' -o -name '*.gemfile.lock' \) 2>/dev/null | sort)
+
+        if [ "${#HASH_INPUTS[@]}" -gt 0 ]; then
+          CACHE_HASH=$(sha256sum "${HASH_INPUTS[@]}" | sha256sum | awk '{print $1}' | cut -c1-12)
+        else
+          CACHE_HASH="no-appraisal-files"
+        fi
+
+        FULL_RUBY="${{ steps.setup.outputs.ruby-full-version }}"
+        CACHE_KEY="setup-ruby-flash-appraisal-gems-${{ inputs.cache-version }}-${{ steps.platform.outputs.platform || runner.os }}-ruby-${FULL_RUBY}-${{ inputs.appraisal-name }}-${CACHE_HASH}"
+        echo "key=$CACHE_KEY" >> "$GITHUB_OUTPUT"
+        echo "restore-keys=setup-ruby-flash-appraisal-gems-${{ inputs.cache-version }}-${{ steps.platform.outputs.platform || runner.os }}-ruby-${FULL_RUBY}-${{ inputs.appraisal-name }}-" >> "$GITHUB_OUTPUT"
+
+    - name: Cache appraisal gems
+      if: inputs.appraisal-name != '' && inputs.appraisal-cache == 'true'
+      uses: actions/cache@v4
+      with:
+        path: ${{ inputs.working-directory }}/vendor/appraisal-bundle
+        key: ${{ steps.appraisal-gem-cache-key.outputs.key }}
+        restore-keys: ${{ steps.appraisal-gem-cache-key.outputs.restore-keys }}
+
+    - name: Install appraisal
+      if: inputs.appraisal-name != ''
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        ROOT_GEMFILE="${{ inputs.appraisal-root-gemfile }}"
+        APPRAISAL_NAME="${{ inputs.appraisal-name }}"
+        if [ ! -f "$ROOT_GEMFILE" ]; then
+          echo "::error::appraisal-root-gemfile does not exist: $ROOT_GEMFILE"
+          exit 1
+        fi
+
+        if [ "${{ inputs.no-document }}" = "true" ] && [ ! -f ~/.gemrc ]; then
+          echo "gem: --no-document" > ~/.gemrc
+        fi
+
+        DOC_FLAG=""
+        if [ "${{ inputs.no-document }}" = "true" ]; then
+          DOC_FLAG="--no-document"
+        fi
+
+        set -f
+        while IFS= read -r gem_args || [ -n "$gem_args" ]; do
+          gem_args="${gem_args#"${gem_args%%[![:space:]]*}"}"
+          gem_args="${gem_args%"${gem_args##*[![:space:]]}"}"
+          case "$gem_args" in
+            ""|\#*) continue ;;
+          esac
+          echo "Installing pre-appraisal-root-gemfile gem with arguments: $gem_args"
+          gem install $gem_args $DOC_FLAG
+        done <<'SETUP_RUBY_FLASH_PRE_APPRAISAL_ROOT_GEMS'
+        ${{ inputs.pre-appraisal-root-gemfile-gems }}
+        SETUP_RUBY_FLASH_PRE_APPRAISAL_ROOT_GEMS
+
+        MAX_RETRIES=${{ inputs.appraisal-install-retries }}
+        case "$MAX_RETRIES" in
+          ''|*[!0-9]*)
+            echo "::error::appraisal-install-retries must be a positive integer"
+            exit 1
+            ;;
+        esac
+        if [ "$MAX_RETRIES" -lt 1 ]; then
+          echo "::error::appraisal-install-retries must be a positive integer"
+          exit 1
+        fi
+
+        run_with_retries() {
+          local label="$1"
+          shift
+          local retry_count=0
+          local backoff=5
+          while [ "$retry_count" -lt "$MAX_RETRIES" ]; do
+            retry_count=$((retry_count + 1))
+            echo "$label attempt $retry_count of $MAX_RETRIES..."
+            if "$@"; then
+              return 0
+            fi
+            if [ "$retry_count" -lt "$MAX_RETRIES" ]; then
+              echo "::warning::$label failed (attempt $retry_count/$MAX_RETRIES). Retrying in ${backoff}s without changing Gemfile sources..."
+              sleep "$backoff"
+              backoff=$((backoff * 2))
+            fi
+          done
+          echo "::error::$label failed after $MAX_RETRIES attempts"
+          return 1
+        }
+
+        export BUNDLE_PATH="$PWD/vendor/appraisal-bundle"
+        echo "BUNDLE_PATH=$BUNDLE_PATH" >> "$GITHUB_ENV"
+        run_with_retries "appraisal root bundle install" env BUNDLE_GEMFILE="$ROOT_GEMFILE" bundle install --jobs 4
+        run_with_retries "appraisal install" env BUNDLE_GEMFILE="$ROOT_GEMFILE" bundle exec appraisal "$APPRAISAL_NAME" install
 
     - name: Generate summary (Ruby only)
       if: steps.check-support.outputs.use-fallback != 'true' && steps.should-install-ore.outputs.install-ore != 'true' && inputs.bundler-cache != 'true'

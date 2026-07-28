@@ -111,6 +111,26 @@ sources.
     bundler-cache: true
 ```
 
+### With Appraisal Setup
+
+`pre-bundle-gems` and `pre-appraisal-root-gemfile-gems` are trusted workflow
+configuration. Each non-empty line is passed as arguments to `gem install`;
+they are not full shell commands.
+
+```yaml
+- uses: appraisal-rb/setup-ruby-flash@v1
+  with:
+    ruby-version: "3.4"
+    main-bundle-install: false
+    pre-bundle-gems: |
+      nomono -v 1.1.0 --source https://gem.coop
+    appraisal-root-gemfile: Appraisal.root.gemfile
+    appraisal-name: ruby-3-4
+    appraisal-install-retries: 2
+    pre-appraisal-root-gemfile-gems: |
+      nomono -v 1.1.0 --source https://gem.coop
+```
+
 ### Manual Ore Commands
 
 Install ore without running `ore install` automatically, allowing manual ore commands:
@@ -153,6 +173,7 @@ When `ruby-version` is set to `default` (the default), setup-ruby-flash reads fr
 | `ore-setup`            | Install ore binary: `true`, `false`, or `auto` (installs if `ore-install` is enabled)                                          | `auto`                |
 | `ore-install`          | Run `ore install` command to install gems from lockfile (requires ore to be installed)                                         | `false`               |
 | `bundler-cache`        | Enable gem caching and installation for ruby/setup-ruby compatibility; modern Ruby versions use `rv clean-install`             | `false`               |
+| `main-bundle-install`  | Control main Gemfile bundle installation: `auto`, `true`, or `false`; use `false` for appraisal-only workflows                | `auto`                |
 | `working-directory`    | Directory for version files and Gemfile                                                                                        | `.`                   |
 | `cache-version`        | Cache version string for invalidation                                                                                          | `v1`                  |
 | `rv-version`           | Version of rv to install (ignored if `rv-git-ref` is set)                                                                      | `latest`              |
@@ -164,6 +185,12 @@ When `ruby-version` is set to `default` (the default), setup-ruby-flash reads fr
 | `without-groups`       | Gem groups to exclude (comma-separated)                                                                                        | `''`                  |
 | `ruby-install-retries` | Number of retry attempts for Ruby installation (with exponential backoff)                                                      | `3`                   |
 | `gem-install-retries`  | Number of retry attempts for dependency resolution and gem installation                                                        | `4`                   |
+| `pre-bundle-gems`      | Newline-separated `gem install` argument lines to run before installing the main Gemfile bundle                                | `''`                  |
+| `pre-appraisal-root-gemfile-gems` | Newline-separated `gem install` argument lines to run before installing the appraisal root Gemfile bundle            | `''`                  |
+| `appraisal-root-gemfile` | Root Gemfile used for appraisal setup when `appraisal-name` is set                                                           | `Appraisal.root.gemfile` |
+| `appraisal-name`       | Appraisal name passed to `bundle exec appraisal <name> install`; empty disables appraisal setup                                | `''`                  |
+| `appraisal-cache`      | Cache gems installed for the appraisal root Gemfile and selected appraisal                                                     | `true`                |
+| `appraisal-install-retries` | Number of retry attempts for appraisal root bundle install and appraisal install                                          | `2`                   |
 | `no-document`          | Skip generating documentation (ri/rdoc) for installed gems. Creates `~/.gemrc` with `gem: --no-document` if file doesn't exist | `true`                |
 | `use-setup-ruby`       | Force the ruby/setup-ruby compatibility path for specific versions. Accepts single value or array: `'3.4'` or `['3.4', '4.0']`           | `''`                  |
 | `use-setup-ruby-flash` | Force use of setup-ruby-flash for specific versions. Accepts single value or array: `'head'` or `['head', 'jruby']`           | `''`                  |
