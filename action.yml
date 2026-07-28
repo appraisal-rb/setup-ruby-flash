@@ -395,6 +395,70 @@ runs:
         echo "ruby-version=$RUBY_VERSION" >> $GITHUB_OUTPUT
         echo "path-reason=$PATH_REASON" >> $GITHUB_OUTPUT
 
+    - name: Plan setup workflow
+      id: setup-plan
+      shell: bash
+      run: |
+        USE_FALLBACK="${{ steps.check-support.outputs.use-fallback }}"
+        MAIN_BUNDLE_INSTALL="${{ inputs.main-bundle-install }}"
+        BUNDLER_CACHE="${{ inputs.bundler-cache }}"
+        ORE_INSTALL="${{ inputs.ore-install }}"
+        INSTALL_PRE_BUNDLE_GEMS="${{ inputs.pre-bundle-gems != '' && 'true' || 'false' }}"
+        INSTALL_APPRAISAL="${{ inputs.appraisal-name != '' && 'true' || 'false' }}"
+        INSTALL_PRE_APPRAISAL_ROOT_GEMFILE_GEMS="${{ inputs.pre-appraisal-root-gemfile-gems != '' && 'true' || 'false' }}"
+        APPRAISAL_CACHE="${{ inputs.appraisal-cache }}"
+
+        case "$MAIN_BUNDLE_INSTALL" in
+          auto)
+            if [ "$BUNDLER_CACHE" = "true" ] || [ "$ORE_INSTALL" = "true" ]; then
+              INSTALL_MAIN_BUNDLE="true"
+            else
+              INSTALL_MAIN_BUNDLE="false"
+            fi
+            ;;
+          true)
+            INSTALL_MAIN_BUNDLE="true"
+            ;;
+          false)
+            INSTALL_MAIN_BUNDLE="false"
+            ;;
+          *)
+            echo "::error::main-bundle-install must be one of: auto, true, false"
+            exit 1
+            ;;
+        esac
+
+        CACHE_APPRAISAL="false"
+        if [ "$INSTALL_APPRAISAL" = "true" ] && [ "$APPRAISAL_CACHE" = "true" ]; then
+          CACHE_APPRAISAL="true"
+        fi
+
+        FAST_BUNDLER_INSTALL="false"
+        if [ "$USE_FALLBACK" != "true" ] && [ "$ORE_INSTALL" != "true" ] && [ "$INSTALL_MAIN_BUNDLE" = "true" ]; then
+          FAST_BUNDLER_INSTALL="true"
+        fi
+
+        MANUAL_COMPATIBILITY_BUNDLE="false"
+        if [ "$USE_FALLBACK" = "true" ] && [ "$INSTALL_MAIN_BUNDLE" = "true" ]; then
+          if [ "$INSTALL_PRE_BUNDLE_GEMS" = "true" ] || [ "$INSTALL_APPRAISAL" = "true" ] || [ "$INSTALL_PRE_APPRAISAL_ROOT_GEMFILE_GEMS" = "true" ]; then
+            MANUAL_COMPATIBILITY_BUNDLE="true"
+          fi
+        fi
+
+        RUBY_SETUP_BUNDLER_CACHE="false"
+        if [ "$USE_FALLBACK" = "true" ] && [ "$INSTALL_MAIN_BUNDLE" = "true" ] && [ "$MANUAL_COMPATIBILITY_BUNDLE" != "true" ]; then
+          RUBY_SETUP_BUNDLER_CACHE="true"
+        fi
+
+        echo "install-main-bundle=$INSTALL_MAIN_BUNDLE" >> "$GITHUB_OUTPUT"
+        echo "install-pre-bundle-gems=$INSTALL_PRE_BUNDLE_GEMS" >> "$GITHUB_OUTPUT"
+        echo "install-appraisal=$INSTALL_APPRAISAL" >> "$GITHUB_OUTPUT"
+        echo "install-pre-appraisal-root-gemfile-gems=$INSTALL_PRE_APPRAISAL_ROOT_GEMFILE_GEMS" >> "$GITHUB_OUTPUT"
+        echo "cache-appraisal=$CACHE_APPRAISAL" >> "$GITHUB_OUTPUT"
+        echo "fast-bundler-install=$FAST_BUNDLER_INSTALL" >> "$GITHUB_OUTPUT"
+        echo "manual-compatibility-bundle=$MANUAL_COMPATIBILITY_BUNDLE" >> "$GITHUB_OUTPUT"
+        echo "ruby-setup-bundler-cache=$RUBY_SETUP_BUNDLER_CACHE" >> "$GITHUB_OUTPUT"
+
     - name: Resolve setup-ruby-flash summary title
       id: summary-title
       shell: bash
@@ -437,7 +501,7 @@ runs:
         ruby-version: ${{ inputs.ruby-version }}
         rubygems: ${{ inputs.rubygems }}
         bundler: ${{ inputs.bundler }}
-        bundler-cache: ${{ (inputs.bundler-cache == 'true' || inputs.ore-install == 'true' || inputs.main-bundle-install == 'true') && inputs.main-bundle-install != 'false' && inputs.pre-bundle-gems == '' && inputs.appraisal-name == '' && inputs.pre-appraisal-root-gemfile-gems == '' }}
+        bundler-cache: ${{ steps.setup-plan.outputs.ruby-setup-bundler-cache == 'true' }}
         working-directory: ${{ inputs.working-directory }}
         cache-version: ${{ inputs.cache-version }}
 
@@ -978,7 +1042,7 @@ runs:
         fi
 
     - name: Install pre-bundle gems
-      if: inputs.pre-bundle-gems != ''
+      if: steps.setup-plan.outputs.install-pre-bundle-gems == 'true'
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       run: |
@@ -1034,7 +1098,7 @@ runs:
         fi
 
     - name: Generate Bundler gem cache key
-      if: steps.check-support.outputs.use-fallback != 'true' && inputs.ore-install != 'true' && inputs.main-bundle-install != 'false' && (inputs.bundler-cache == 'true' || inputs.main-bundle-install == 'true')
+      if: steps.setup-plan.outputs.fast-bundler-install == 'true'
       id: bundler-gem-cache-key
       shell: bash
       working-directory: ${{ inputs.working-directory }}
@@ -1064,7 +1128,7 @@ runs:
         echo "restore-keys=setup-ruby-flash-bundler-gems-${{ inputs.cache-version }}-${{ steps.platform.outputs.platform }}-ruby-${FULL_RUBY}-" >> $GITHUB_OUTPUT
 
     - name: Cache Bundler gems
-      if: steps.check-support.outputs.use-fallback != 'true' && inputs.ore-install != 'true' && inputs.main-bundle-install != 'false' && (inputs.bundler-cache == 'true' || inputs.main-bundle-install == 'true')
+      if: steps.setup-plan.outputs.fast-bundler-install == 'true'
       id: cache-bundler-gems
       uses: actions/cache@v4
       with:
@@ -1073,7 +1137,7 @@ runs:
         restore-keys: ${{ steps.bundler-gem-cache-key.outputs.restore-keys }}
 
     - name: Install gems with rv
-      if: steps.check-support.outputs.use-fallback != 'true' && inputs.ore-install != 'true' && inputs.main-bundle-install != 'false' && (inputs.bundler-cache == 'true' || inputs.main-bundle-install == 'true')
+      if: steps.setup-plan.outputs.fast-bundler-install == 'true'
       id: install-bundler-gems
       shell: bash
       working-directory: ${{ inputs.working-directory }}
@@ -1169,7 +1233,7 @@ runs:
         echo "| Gem Install Time | ${ELAPSED}s |" >> $GITHUB_STEP_SUMMARY
 
     - name: Install gems with Bundler (compatibility path)
-      if: steps.check-support.outputs.use-fallback == 'true' && inputs.main-bundle-install != 'false' && (inputs.bundler-cache == 'true' || inputs.ore-install == 'true' || inputs.main-bundle-install == 'true') && (inputs.pre-bundle-gems != '' || inputs.appraisal-name != '' || inputs.pre-appraisal-root-gemfile-gems != '')
+      if: steps.setup-plan.outputs.manual-compatibility-bundle == 'true'
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       run: |
@@ -1210,7 +1274,7 @@ runs:
         exit 1
 
     - name: Generate appraisal gem cache key
-      if: inputs.appraisal-name != '' && inputs.appraisal-cache == 'true'
+      if: steps.setup-plan.outputs.cache-appraisal == 'true'
       id: appraisal-gem-cache-key
       shell: bash
       working-directory: ${{ inputs.working-directory }}
@@ -1236,7 +1300,7 @@ runs:
         echo "restore-keys=setup-ruby-flash-appraisal-gems-${{ inputs.cache-version }}-${{ steps.platform.outputs.platform || runner.os }}-ruby-${FULL_RUBY}-${{ inputs.appraisal-name }}-" >> "$GITHUB_OUTPUT"
 
     - name: Cache appraisal gems
-      if: inputs.appraisal-name != '' && inputs.appraisal-cache == 'true'
+      if: steps.setup-plan.outputs.cache-appraisal == 'true'
       uses: actions/cache@v4
       with:
         path: ${{ inputs.working-directory }}/vendor/appraisal-bundle
@@ -1244,7 +1308,7 @@ runs:
         restore-keys: ${{ steps.appraisal-gem-cache-key.outputs.restore-keys }}
 
     - name: Install appraisal
-      if: inputs.appraisal-name != ''
+      if: steps.setup-plan.outputs.install-appraisal == 'true'
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       run: |

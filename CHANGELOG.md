@@ -9,6 +9,7 @@
   - `appraisal-name` runs `bundle exec appraisal <name> install` when provided
   - `main-bundle-install: false` skips the main Gemfile install for appraisal-only workflows
   - `appraisal-install-retries` defaults to `2` and retries without changing configured Gemfile sources
+  - Setup decisions are precomputed as named step outputs so workflow conditions remain auditable
 
 - **Ruby Summary Detail**: Workflow summaries now show the installed Ruby patch version when it differs from the selected Ruby line
   - Summary headings include the setup-ruby-flash action version when it can be resolved at runtime

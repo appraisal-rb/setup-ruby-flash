@@ -7,6 +7,8 @@ RSpec.describe 'action.yml' do
   let(:action) { YAML.load_file('action.yml') }
   let(:steps) { action.fetch('runs').fetch('steps') }
   let(:step_names) { steps.map { |step| step['name'] } }
+  let(:ruby_setup_cache_expression) { "${{ steps.setup-plan.outputs.ruby-setup-bundler-cache == 'true' }}" }
+  let(:manual_compatibility_bundle_expression) { "steps.setup-plan.outputs.manual-compatibility-bundle == 'true'" }
 
   it 'defines appraisal and trusted gem preinstall inputs' do
     inputs = action.fetch('inputs')
@@ -24,9 +26,7 @@ RSpec.describe 'action.yml' do
   it 'uses rv clean-install for modern Ruby bundler-cache installs' do
     install_step = steps.fetch(step_names.index('Install gems with rv'))
 
-    expect(install_step.fetch('if')).to include("inputs.bundler-cache == 'true'")
-    expect(install_step.fetch('if')).to include("inputs.ore-install != 'true'")
-    expect(install_step.fetch('if')).to include("inputs.main-bundle-install != 'false'")
+    expect(install_step.fetch('if')).to eq("steps.setup-plan.outputs.fast-bundler-install == 'true'")
     expect(install_step.fetch('run')).to include('~/.local/bin/rv ci --gemfile')
   end
 
@@ -69,18 +69,31 @@ RSpec.describe 'action.yml' do
 
     expect(fallback_step.fetch('uses')).to eq('ruby/setup-ruby@v1')
     expect(fallback_step.fetch('if')).to eq("steps.check-support.outputs.use-fallback == 'true'")
-    expect(fallback_step.dig('with', 'bundler-cache')).to include("inputs.main-bundle-install != 'false'")
-    expect(fallback_step.dig('with', 'bundler-cache')).to include("inputs.main-bundle-install == 'true'")
-    expect(fallback_step.dig('with', 'bundler-cache')).to include("inputs.pre-bundle-gems == ''")
-    expect(fallback_step.dig('with', 'bundler-cache')).to include("inputs.appraisal-name == ''")
-    expect(fallback_step.dig('with', 'bundler-cache')).to include("inputs.pre-appraisal-root-gemfile-gems == ''")
+    expect(fallback_step.dig('with', 'bundler-cache')).to eq(ruby_setup_cache_expression)
+  end
+
+  it 'precomputes setup workflow decisions before installing gems' do
+    plan_step = steps.fetch(step_names.index('Plan setup workflow'))
+    script = plan_step.fetch('run')
+    plan_index = step_names.index('Plan setup workflow')
+    compatibility_index = step_names.index('Setup Ruby with ruby/setup-ruby (compatibility path)')
+
+    expect(plan_index).to be < compatibility_index
+    expect(script).to include('main-bundle-install must be one of: auto, true, false')
+    expect(script).to include('INSTALL_PRE_BUNDLE_GEMS="${{ inputs.pre-bundle-gems !=')
+    expect(script).to include('FAST_BUNDLER_INSTALL="false"')
+    expect(script).to include('MANUAL_COMPATIBILITY_BUNDLE="false"')
+    expect(script).to include('RUBY_SETUP_BUNDLER_CACHE="false"')
+    expect(script).to include('echo "fast-bundler-install=$FAST_BUNDLER_INSTALL"')
+    expect(script).to include('echo "manual-compatibility-bundle=$MANUAL_COMPATIBILITY_BUNDLE"')
+    expect(script).to include('echo "ruby-setup-bundler-cache=$RUBY_SETUP_BUNDLER_CACHE"')
   end
 
   it 'installs trusted pre-bundle gem arguments before bundle installation' do
     pre_bundle_step = steps.fetch(step_names.index('Install pre-bundle gems'))
     script = pre_bundle_step.fetch('run')
 
-    expect(pre_bundle_step.fetch('if')).to eq("inputs.pre-bundle-gems != ''")
+    expect(pre_bundle_step.fetch('if')).to eq("steps.setup-plan.outputs.install-pre-bundle-gems == 'true'")
     expect(script).to include('gem install $gem_args $DOC_FLAG')
     expect(script).to include('SETUP_RUBY_FLASH_PRE_BUNDLE_GEMS')
     expect(script).not_to include('eval')
@@ -90,10 +103,7 @@ RSpec.describe 'action.yml' do
     compatibility_bundle_step = steps.fetch(step_names.index('Install gems with Bundler (compatibility path)'))
     script = compatibility_bundle_step.fetch('run')
 
-    expect(compatibility_bundle_step.fetch('if')).to include("steps.check-support.outputs.use-fallback == 'true'")
-    expect(compatibility_bundle_step.fetch('if')).to include("inputs.main-bundle-install != 'false'")
-    expect(compatibility_bundle_step.fetch('if')).to include("inputs.pre-bundle-gems != ''")
-    expect(compatibility_bundle_step.fetch('if')).to include("inputs.appraisal-name != ''")
+    expect(compatibility_bundle_step.fetch('if')).to eq(manual_compatibility_bundle_expression)
     expect(script).to include('bundle install --gemfile "$GEMFILE" --jobs 4')
     expect(script).to include('without changing Gemfile sources')
   end
@@ -108,13 +118,13 @@ RSpec.describe 'action.yml' do
     [
       fast_cache_key_step,
       fast_cache_step,
-      fast_install_step,
-      compatibility_bundle_step
+      fast_install_step
     ].each do |step|
-      expect(step.fetch('if')).to include("inputs.main-bundle-install != 'false'")
+      expect(step.fetch('if')).to eq("steps.setup-plan.outputs.fast-bundler-install == 'true'")
     end
 
-    expect(fallback_step.dig('with', 'bundler-cache')).to include("inputs.main-bundle-install != 'false'")
+    expect(compatibility_bundle_step.fetch('if')).to eq(manual_compatibility_bundle_expression)
+    expect(fallback_step.dig('with', 'bundler-cache')).to eq(ruby_setup_cache_expression)
   end
 
   it 'resolves a versioned summary title from the action ref when available' do
@@ -172,7 +182,9 @@ RSpec.describe 'action.yml' do
     install_step = steps.fetch(step_names.index('Install appraisal'))
     script = install_step.fetch('run')
 
-    expect(cache_key_step.fetch('if')).to eq("inputs.appraisal-name != '' && inputs.appraisal-cache == 'true'")
+    expect(cache_key_step.fetch('if')).to eq("steps.setup-plan.outputs.cache-appraisal == 'true'")
+    expect(cache_step.fetch('if')).to eq("steps.setup-plan.outputs.cache-appraisal == 'true'")
+    expect(install_step.fetch('if')).to eq("steps.setup-plan.outputs.install-appraisal == 'true'")
     expect(cache_step.dig('with', 'path')).to eq('${{ inputs.working-directory }}/vendor/appraisal-bundle')
     expect(script).to include('ROOT_GEMFILE="${{ inputs.appraisal-root-gemfile }}"')
     expect(script).to include('APPRAISAL_NAME="${{ inputs.appraisal-name }}"')
