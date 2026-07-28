@@ -8,22 +8,22 @@
   - Uses `rv clean-install` for modern Ruby versions supported by setup-ruby-flash
   - Retries Bundler lockfile generation and rv gem installation without changing Gemfile sources
   - Allows true drop-in replacement: just change action name, keep all inputs the same
-  - When using fallback to ruby/setup-ruby, `bundler-cache` is passed through directly
+  - When using the compatibility path to ruby/setup-ruby, `bundler-cache` is passed through directly
   - Perfect for migrating from ruby/setup-ruby with zero workflow changes
 
 - **gem-install-retries Input**: New `gem-install-retries` input controls retry attempts for dependency resolution and gem installation
   - Defaults to `4`
   - Retries keep the configured Gemfile sources, avoiding fallback to alternate gem hosts
 
-- **Automatic Fallback to ruby/setup-ruby**: setup-ruby-flash now automatically falls back to [ruby/setup-ruby](https://github.com/ruby/setup-ruby) for unsupported Ruby versions and implementations
+- **Automatic Compatibility Path to ruby/setup-ruby**: setup-ruby-flash now automatically uses the [ruby/setup-ruby](https://github.com/ruby/setup-ruby) compatibility path for unsupported Ruby versions and implementations
   - Automatically detects Ruby version < 3.2 (2.7, 3.0, 3.1, etc.) and uses ruby/setup-ruby
   - Automatically detects non-MRI implementations (JRuby, TruffleRuby, etc.) and uses ruby/setup-ruby
   - Enables true drop-in replacement behavior - use setup-ruby-flash everywhere, get best performance where available
-  - Shows informative notice when fallback occurs: `Ruby version 'X.X' is not supported by setup-ruby-flash (requires 3.2+). Falling back to ruby/setup-ruby.`
-  - All inputs are passed through to ruby/setup-ruby when using fallback
+  - Shows informative notice when the compatibility path is selected: `Selected ruby/setup-ruby compatibility path for Ruby version 'X.X' because rv fast path currently supports: 3.2 3.3 3.4 4.0.`
+  - All inputs are passed through to ruby/setup-ruby when using the compatibility path
   - Perfect for matrix builds that test across multiple Ruby versions (2.7 through 4.0)
   - **Manual Override Controls**: New `use-setup-ruby` and `use-setup-ruby-flash` inputs allow forcing specific versions to use one action or the other
-    - `use-setup-ruby`: Force fallback for supported versions (useful for benchmarking setup-ruby-flash vs setup-ruby)
+    - `use-setup-ruby`: Force the ruby/setup-ruby compatibility path for supported versions (useful for benchmarking setup-ruby-flash vs setup-ruby)
     - `use-setup-ruby-flash`: Force flash path for unsupported versions (useful for forward compatibility when rv adds support for new versions)
     - Accepts same format as ruby-version in a matrix: `'3.4'` for single value or `['3.4', '4.0']` for array
     - Enables A/B testing and future-proofing workflows
@@ -60,13 +60,16 @@
 
 - **Elapsed Time Tracking**: All major build and install operations now track and display elapsed time
   - Tracks rv build from source, rv install, Ruby install, ore build, gemfile-go build, gem install
-  - Tracks fallback setup-ruby total time when using automatic fallback
+  - Tracks ruby/setup-ruby total time when using automatic compatibility path
   - All times displayed in GitHub Actions step summary for easy performance monitoring
   - Helps identify bottlenecks and compare performance between runs
   - Times only shown when operations actually run (not from cache)
   - See `ELAPSED_TIME_TRACKING.md` for comprehensive documentation
 
 ### Changed
+
+- **Setup Path Wording**: Ruby versions handled by ruby/setup-ruby, such as ruby-head, are now reported as using the ruby/setup-ruby compatibility path instead of a fallback
+  - Compatibility path runs now write a setup-ruby-flash summary with selected path, reason, inputs, and elapsed setup time
 
 - **Bundler Cache Fast Path**: `bundler-cache` no longer implies ore
   - Modern Ruby versions install gems through rv's native `clean-install`
@@ -77,7 +80,7 @@
   - `SUPPORTED_SPECIAL_VERSIONS=""` for special versions like head, jruby, truffleruby (empty now, ready for future)
   - Supports prefix matching for special versions (e.g., "jruby" matches "jruby-9.4", "jruby-9.5", etc.)
   - Makes it trivial to add support for new versions - just update the appropriate allowlist
-  - Defaults to fallback unless explicitly in an allowlist
+  - Defaults to the compatibility path unless explicitly in an allowlist
   - More maintainable and prepared for future rv enhancements
 - Cache keys now include `build-from-source` flag to prevent collision between git refs and release versions
 - Improved version resolution to handle both release versions and git references

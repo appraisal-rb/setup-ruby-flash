@@ -48,12 +48,12 @@ setup-ruby-flash now tracks elapsed time for all major build and install operati
 
 **When tracked:** Always when `bundler-cache: true` or `ore-install: true`
 
-### 7. Fallback Setup (ruby/setup-ruby)
-**Steps:** `Start fallback timer` → `Setup Ruby with ruby/setup-ruby` → `End fallback timer`  
-**Output:** `steps.fallback-end.outputs.elapsed`  
+### 7. Compatibility Setup (ruby/setup-ruby)
+**Steps:** `Start ruby/setup-ruby compatibility timer` → `Setup Ruby with ruby/setup-ruby` → `End ruby/setup-ruby compatibility timer`
+**Output:** `steps.fallback-end.outputs.elapsed`
 **Includes:** Complete ruby/setup-ruby action execution
 
-**When tracked:** Only when fallback to ruby/setup-ruby is used
+**When tracked:** Only when the ruby/setup-ruby compatibility path is used
 
 ## Summary Display
 
@@ -99,12 +99,12 @@ All timing information is displayed in the GitHub Actions step summary:
 | Gem Install Time | 45s |
 ```
 
-### Fallback Path
+### Compatibility Path
 
-When using fallback, the timing is captured but not displayed in a summary (since ruby/setup-ruby generates its own summary). However, the elapsed time is logged:
+When using the ruby/setup-ruby compatibility path, setup-ruby-flash writes its own summary with the selected path and elapsed time. The elapsed time is also logged:
 
 ```
-setup-ruby fallback completed in 35s
+ruby/setup-ruby compatibility path completed in 35s
 ```
 
 ## Implementation Details
@@ -197,7 +197,7 @@ If a workflow is slow, check the summary:
 | ore Build | 30-90s | Go compilation |
 | gemfile-go Setup | 5-20s | Clone + workspace setup |
 | Gem Install | 20-120s | Depends on gem count/complexity |
-| Fallback (ruby/setup-ruby) | 30-60s | Ruby compilation on first run |
+| Compatibility path (ruby/setup-ruby) | 30-60s | Ruby compilation on first run |
 
 ### Cached Times
 

@@ -50,10 +50,19 @@ RSpec.describe 'action.yml' do
     expect(script).not_to include('|| [ "$BUNDLER_CACHE" = "true" ]')
   end
 
-  it 'keeps unsupported Ruby versions on the ruby/setup-ruby fallback path' do
-    fallback_step = steps.fetch(step_names.index('Setup Ruby with ruby/setup-ruby (fallback)'))
+  it 'keeps unsupported Ruby versions on the ruby/setup-ruby compatibility path' do
+    fallback_step = steps.fetch(step_names.index('Setup Ruby with ruby/setup-ruby (compatibility path)'))
 
     expect(fallback_step.fetch('uses')).to eq('ruby/setup-ruby@v1')
     expect(fallback_step.fetch('if')).to eq("steps.check-support.outputs.use-fallback == 'true'")
+  end
+
+  it 'writes a setup-ruby-flash summary for the ruby/setup-ruby compatibility path' do
+    fallback_timer_step = steps.fetch(step_names.index('End ruby/setup-ruby compatibility timer'))
+    script = fallback_timer_step.fetch('run')
+
+    expect(script).to include('setup-ruby-flash Summary')
+    expect(script).to include('Selected Path | ruby/setup-ruby compatibility path')
+    expect(script).to include('Setup Time | ${ELAPSED}s')
   end
 end

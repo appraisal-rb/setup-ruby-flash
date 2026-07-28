@@ -1,8 +1,8 @@
-# Automatic Fallback to ruby/setup-ruby
+# Automatic Compatibility Path to ruby/setup-ruby
 
 ## Overview
 
-setup-ruby-flash automatically falls back to [ruby/setup-ruby](https://github.com/ruby/setup-ruby) for Ruby versions and implementations that are not supported by rv and ore. This enables true drop-in replacement behavior where you can use setup-ruby-flash everywhere and get the best performance where available, with full compatibility as a fallback.
+setup-ruby-flash automatically uses the [ruby/setup-ruby](https://github.com/ruby/setup-ruby) compatibility path for Ruby versions and implementations that are not supported by rv and ore. This enables true drop-in replacement behavior where you can use setup-ruby-flash everywhere and get the best performance where available, with the expected setup-ruby path for versions like ruby-head.
 
 ## Supported vs Unsupported Configurations
 
@@ -16,9 +16,9 @@ These configurations use the optimized rv and ore tools:
 - **Ruby 4.0** (MRI)
 - **Platforms**: Linux (x86_64, ARM64), macOS (x86_64, ARM64)
 
-### 🔄 Fallback Path (ruby/setup-ruby)
+### 🔄 Compatibility Path (ruby/setup-ruby)
 
-These configurations automatically fall back to ruby/setup-ruby:
+These configurations automatically use ruby/setup-ruby:
 
 - **Ruby versions other than 3.2, 3.3, 3.4, 4.0**: Includes 2.7, 3.0, 3.1, 3.5+, head, etc.
 - **Non-MRI implementations**: JRuby, TruffleRuby, mruby, Rubinius, etc.
@@ -39,23 +39,23 @@ The action uses a **allowlist approach** - only explicitly supported versions us
 5. If allowlisted: proceed with rv + ore
 ```
 
-This means any version not explicitly in the allowlist (like `head`, `3.5`, `2.7`) will use fallback.
+This means any version not explicitly in the allowlist (like `ruby-head`, `3.5`, `2.7`) will use the ruby/setup-ruby compatibility path.
 
 ### User Experience
 
-When fallback occurs, you'll see an informative notice in the workflow logs:
+When the compatibility path is selected, you'll see an informative notice in the workflow logs:
 
 ```
-::notice::Ruby version '3.1' is not supported by setup-ruby-flash (requires 3.2+). Falling back to ruby/setup-ruby.
+::notice::Selected ruby/setup-ruby compatibility path for Ruby version '3.1' because rv fast path currently supports: 3.2 3.3 3.4 4.0.
 ```
 
 or
 
 ```
-::notice::Ruby implementation 'jruby-9.4' is not supported by setup-ruby-flash. Falling back to ruby/setup-ruby.
+::notice::Selected ruby/setup-ruby compatibility path for Ruby version 'jruby-9.4' because rv fast path currently supports: 3.2 3.3 3.4 4.0.
 ```
 
-All subsequent steps in the workflow continue normally - the fallback is transparent.
+All subsequent steps in the workflow continue normally - the compatibility path is transparent.
 
 ## Usage Examples
 
@@ -83,7 +83,7 @@ jobs:
           ruby-version: ${{ matrix.ruby }}
           bundler-cache: true
       
-      # Ruby 2.7, 3.0, 3.1: automatic fallback to ruby/setup-ruby
+      # Ruby 2.7, 3.0, 3.1: automatic ruby/setup-ruby compatibility path
       # Ruby 3.2, 3.3, 3.4, 4.0: fast path with rv + ore
       
       - name: Run tests
@@ -101,8 +101,8 @@ jobs:
       matrix:
         ruby: 
           - '3.4'              # Fast path
-          - 'jruby-9.4'        # Automatic fallback
-          - 'truffleruby-24'   # Automatic fallback
+          - 'jruby-9.4'        # Automatic compatibility path
+          - 'truffleruby-24'   # Automatic compatibility path
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -136,7 +136,7 @@ jobs:
           bundler-cache: true
       
       # Linux & macOS: fast path
-      # Windows: automatic fallback (platform detection happens first)
+      # Windows: automatic compatibility path (platform detection happens first)
       
       - run: bundle exec rake test
 ```
@@ -160,7 +160,7 @@ jobs:
           ruby-version: ${{ matrix.ruby }}
           bundler-cache: true
       
-      # Ruby 3.1: fallback
+      # Ruby 3.1: compatibility path
       # Ruby 3.2, 3.3: fast path
       
       - run: bundle exec rake test
@@ -168,9 +168,9 @@ jobs:
 
 ## Input Compatibility
 
-All inputs are passed through to ruby/setup-ruby when fallback occurs:
+All inputs are passed through to ruby/setup-ruby when compatibility path is selected:
 
-| Input | Supported in Fallback |
+| Input | Supported in Compatibility Path |
 |-------|----------------------|
 | `ruby-version` | ✅ Yes |
 | `rubygems` | ✅ Yes |
@@ -240,7 +240,7 @@ No changes needed - just replace the action:
 - **Cached run**: ~1-2 seconds
 - **With ore-install**: gem installation ~50% faster
 
-### Ruby 3.1 on Ubuntu (Fallback)
+### Ruby 3.1 on Ubuntu (Compatibility Path)
 
 - **First run**: ~30-60 seconds (compilation)
 - **Cached run**: ~5-10 seconds
@@ -257,36 +257,36 @@ For projects that need to support both old and new Ruby versions:
 
 ## Troubleshooting
 
-### How do I know if fallback is being used?
+### How do I know if the compatibility path is being used?
 
 Check the workflow logs for the notice message:
 
 ```
-::notice::Ruby version '3.1' is not supported by setup-ruby-flash (requires 3.2+). Falling back to ruby/setup-ruby.
+::notice::Selected ruby/setup-ruby compatibility path for Ruby version '3.1' because rv fast path currently supports: 3.2 3.3 3.4 4.0.
 ```
 
-### Can I force fallback for testing?
+### Can I force the compatibility path for testing?
 
 Yes, just specify an unsupported Ruby version:
 
 ```yaml
 - uses: appraisal-rb/setup-ruby-flash@v1
   with:
-    ruby-version: '3.1'  # Will use fallback
+    ruby-version: '3.1'  # Will use the compatibility path
 ```
 
-### Can I disable fallback?
+### Can I disable the compatibility path?
 
-No - fallback is automatic and cannot be disabled. If you only want to support Ruby 3.2+, specify that in your matrix configuration:
+No - the compatibility path is automatic and cannot be disabled. If you only want to support Ruby 3.2+, specify that in your matrix configuration:
 
 ```yaml
 matrix:
-  ruby: ['3.2', '3.3', '3.4']  # No fallback needed
+  ruby: ['3.2', '3.3', '3.4']  # No compatibility path needed
 ```
 
-### Does fallback work with gem installation?
+### Does the compatibility path work with gem installation?
 
-When fallback occurs, both `ore-install` and `bundler-cache` are converted to
+When compatibility path is selected, both `ore-install` and `bundler-cache` are converted to
 `bundler-cache: true` and passed to ruby/setup-ruby. This ensures compatibility
 for Ruby versions and engines that rv does not support.
 
@@ -296,7 +296,7 @@ They both enable gem installation, but they are not aliases:
 - **Fast path (Ruby 3.2+)**: `bundler-cache` uses rv's native
   `clean-install` with gem caching and retries
 - **Ore path**: `ore-install` explicitly installs ore and runs `ore install`
-- **Fallback path**: both convert to `bundler-cache: true` for ruby/setup-ruby
+- **Compatibility path**: both convert to `bundler-cache: true` for ruby/setup-ruby
 
 ## Implementation Details
 
@@ -311,7 +311,7 @@ SUPPORTED_NUMERIC_VERSIONS="3.2 3.3 3.4 4.0"
 # Special versions and alternative implementations
 SUPPORTED_SPECIAL_VERSIONS=""  # e.g., "head jruby truffleruby" when rv supports them
 
-# Default to fallback unless version is in allowlist
+# Default to the compatibility path unless version is in allowlist
 USE_FALLBACK="true"
 
 # First check special versions (head, jruby-*, truffleruby-*, etc.)
@@ -352,12 +352,12 @@ All rv/ore-specific steps are conditional on `use-fallback != 'true'`:
   # ... rv installation logic
 ```
 
-### Fallback Step
+### Compatibility Step
 
-When fallback is needed, ruby/setup-ruby is invoked:
+When the compatibility path is needed, ruby/setup-ruby is invoked:
 
 ```yaml
-- name: Setup Ruby with ruby/setup-ruby (fallback)
+- name: Setup Ruby with ruby/setup-ruby (compatibility path)
   if: steps.check-support.outputs.use-fallback == 'true'
   uses: ruby/setup-ruby@v1
   with:
@@ -375,12 +375,12 @@ When fallback is needed, ruby/setup-ruby is invoked:
 
 ## Limitations
 
-- Fallback uses compilation (slower first run) for older Ruby versions
-- ore-install feature not available when using fallback
-- Some advanced setup-ruby-flash features unavailable in fallback mode
+- The compatibility path uses compilation (slower first run) for older Ruby versions
+- ore-install feature not available when using the compatibility path
+- Some advanced setup-ruby-flash features are unavailable in compatibility mode
 
 ## See Also
 
 - [Main README](README.md) - General usage and features
 - [GIT_REF_FEATURE.md](GIT_REF_FEATURE.md) - Building from source
-- [ruby/setup-ruby](https://github.com/ruby/setup-ruby) - The fallback action
+- [ruby/setup-ruby](https://github.com/ruby/setup-ruby) - The compatibility action

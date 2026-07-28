@@ -41,7 +41,7 @@ A _fast_ GitHub Action for fast Ruby environment setup using [rv](https://github
 - 🦊 **Forgejo [Actions](https://forgejo.org/docs/next/admin/actions/) support**
 - 🧊 **Codeberg [Actions](https://docs.codeberg.org/ci/actions/) support**
 - 🐙 **GitHub [Actions](https://github.com/marketplace/actions/setup-ruby-with-rv-and-ore) support**
-- 🔄 **Automatic fallback** to [ruby/setup-ruby][setup-ruby] for unsupported Ruby versions/implementations
+- 🔄 **Automatic ruby/setup-ruby compatibility path** for Ruby versions and implementations not handled by rv
 
 ## Requirements
 
@@ -49,21 +49,21 @@ A _fast_ GitHub Action for fast Ruby environment setup using [rv](https://github
 - **Architectures**: x86_64, ARM64
 - **Ruby Versions**: 3.2, 3.3, 3.4, 4.0 (MRI only)
 
-### Automatic Fallback
+### Automatic Compatibility Path
 
-For unsupported configurations, setup-ruby-flash **automatically falls back** to [ruby/setup-ruby][setup-ruby]:
+For configurations outside rv's fast path, setup-ruby-flash **automatically uses** [ruby/setup-ruby][setup-ruby]:
 
 - **Ruby versions < 3.2** (e.g., 2.7, 3.0, 3.1)
 - **Non-MRI implementations** (JRuby, TruffleRuby, etc.)
 - **Windows** (via platform detection)
 
-This means you can use setup-ruby-flash everywhere and get the best performance where available, with full compatibility as a fallback.
+This means you can use setup-ruby-flash everywhere and get the best performance where available, with the expected setup-ruby path for Ruby heads and alternate engines.
 
 | Ruby Version/Implementation | Behavior |
 | --- | --- |
 | Ruby 3.2, 3.3, 3.4, 4.0 (MRI) | ⚡ **Fast** - uses rv + ore |
-| Ruby 2.7, 3.0, 3.1 (MRI) | 🔄 **Fallback** - uses ruby/setup-ruby |
-| JRuby, TruffleRuby, etc. | 🔄 **Fallback** - uses ruby/setup-ruby |
+| Ruby 2.7, 3.0, 3.1 (MRI) | 🔄 **Compatibility** - uses ruby/setup-ruby |
+| JRuby, TruffleRuby, ruby-head, etc. | 🔄 **Compatibility** - uses ruby/setup-ruby |
 
 [setup-ruby]: https://github.com/ruby/setup-ruby
 
@@ -165,7 +165,7 @@ When `ruby-version` is set to `default` (the default), setup-ruby-flash reads fr
 | `ruby-install-retries` | Number of retry attempts for Ruby installation (with exponential backoff)                                                      | `3`                   |
 | `gem-install-retries`  | Number of retry attempts for dependency resolution and gem installation                                                        | `4`                   |
 | `no-document`          | Skip generating documentation (ri/rdoc) for installed gems. Creates `~/.gemrc` with `gem: --no-document` if file doesn't exist | `true`                |
-| `use-setup-ruby`       | Force fallback to ruby/setup-ruby for specific versions. Accepts single value or array: `'3.4'` or `['3.4', '4.0']`           | `''`                  |
+| `use-setup-ruby`       | Force the ruby/setup-ruby compatibility path for specific versions. Accepts single value or array: `'3.4'` or `['3.4', '4.0']`           | `''`                  |
 | `use-setup-ruby-flash` | Force use of setup-ruby-flash for specific versions. Accepts single value or array: `'head'` or `['head', 'jruby']`           | `''`                  |
 | `token`                | GitHub token for API calls                                                                                                     | `${{ github.token }}` |
 
@@ -291,9 +291,9 @@ Include documentation (ri/rdoc) for installed gems (default skips documentation 
     no-document: false
 ```
 
-### Matrix Testing Across Ruby Versions (with Automatic Fallback)
+### Matrix Testing Across Ruby Versions (with Automatic Compatibility Path)
 
-Test across multiple Ruby versions, including older versions that automatically fall back to ruby/setup-ruby:
+Test across multiple Ruby versions, including older versions that automatically use ruby/setup-ruby:
 
 ```yaml
 jobs:
@@ -308,23 +308,23 @@ jobs:
         with:
           ruby-version: ${{ matrix.ruby }}
           bundler-cache: true
-      # Ruby 2.7, 3.0, 3.1 use ruby/setup-ruby (automatic fallback)
+      # Ruby 2.7, 3.0, 3.1 use ruby/setup-ruby (automatic compatibility path)
       # Ruby 3.2, 3.3, 3.4 use rv + ore (fast path)
       - run: bundle exec rake test
 ```
 
 ### Testing Non-MRI Implementations
 
-JRuby, TruffleRuby, and other implementations automatically fall back to ruby/setup-ruby:
+JRuby, TruffleRuby, and other implementations automatically use ruby/setup-ruby:
 
 ```yaml
 - uses: appraisal-rb/setup-ruby-flash@v1
   with:
-    ruby-version: "jruby-9.4"  # Automatic fallback
+    ruby-version: "jruby-9.4"  # Automatic compatibility path
     bundler-cache: true
 ```
 
-### Benchmarking: Force Fallback for Supported Versions
+### Benchmarking: Force ruby/setup-ruby for Supported Versions
 
 Use `use-setup-ruby` to force specific supported versions to use ruby/setup-ruby for performance comparison:
 
@@ -402,11 +402,11 @@ are automatically installed. Fork syntax (`pboling:feat/myexperiment`) is suppor
 > Use release versions for production CI workflows.
 > See [GIT_REF_FEATURE.md](GIT_REF_FEATURE.md) for comprehensive documentation.
 
-## Automatic Fallback
+## Automatic Compatibility Path
 
-For Ruby versions < 3.2 or non-MRI implementations (JRuby, TruffleRuby), setup-ruby-flash automatically falls back to ruby/setup-ruby. This enables true drop-in replacement behavior.
+For Ruby versions < 3.2, Ruby heads, or non-MRI implementations (JRuby, TruffleRuby), setup-ruby-flash automatically uses ruby/setup-ruby. This enables true drop-in replacement behavior.
 
-See [FALLBACK_FEATURE.md](FALLBACK_FEATURE.md) for detailed documentation on the automatic fallback feature.
+See [FALLBACK_FEATURE.md](FALLBACK_FEATURE.md) for detailed documentation on the automatic compatibility path feature.
 
 ## Migration from setup-ruby
 

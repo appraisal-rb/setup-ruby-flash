@@ -57,7 +57,7 @@ inputs:
   bundler-cache:
     description: |
       Enable gem caching and installation for ruby/setup-ruby compatibility.
-      Modern Ruby versions use rv clean-install; fallback versions pass this through to ruby/setup-ruby.
+      Modern Ruby versions use rv clean-install; compatibility-path versions pass this through to ruby/setup-ruby.
       Either 'true' or 'false'.
     required: false
     default: "false"
@@ -164,7 +164,7 @@ inputs:
 
   use-setup-ruby:
     description: |
-      Force fallback to ruby/setup-ruby for specific Ruby versions.
+      Force the ruby/setup-ruby compatibility path for specific Ruby versions.
       Use this to benchmark setup-ruby-flash vs setup-ruby for the same version.
       Accepts the same format as ruby-version in a matrix: ['3.4', '4.0'] or just '3.4'
       Takes precedence over automatic detection.
@@ -238,6 +238,7 @@ runs:
         RUBY_VERSION="${{ inputs.ruby-version }}"
         USE_FALLBACK="false"
         OVERRIDE_REASON=""
+        PATH_REASON=""
         
         # Resolve version if 'default'
         if [ "$RUBY_VERSION" = "default" ]; then
@@ -265,9 +266,10 @@ runs:
           # Check if current version matches (with quotes or without)
           if [ "$USE_FLASH_LIST" = "$RUBY_VERSION" ] || \
              echo "$USE_FLASH_LIST" | grep -qE "(^|[^a-z0-9.])$RUBY_VERSION([^a-z0-9.]|$)"; then
-            echo "::notice::Ruby version '$RUBY_VERSION' forced to use setup-ruby-flash via use-setup-ruby-flash input."
+            echo "::notice::Selected rv fast path for Ruby version '$RUBY_VERSION' because use-setup-ruby-flash requested it."
             USE_FALLBACK="false"
             OVERRIDE_REASON="forced-flash"
+            PATH_REASON="Forced by use-setup-ruby-flash input"
           fi
         fi
         
@@ -278,9 +280,10 @@ runs:
             # Handle single value or array format
             if [ "$USE_RUBY_LIST" = "$RUBY_VERSION" ] || \
                echo "$USE_RUBY_LIST" | grep -qE "(^|[^a-z0-9.])$RUBY_VERSION([^a-z0-9.]|$)"; then
-              echo "::notice::Ruby version '$RUBY_VERSION' forced to use ruby/setup-ruby via use-setup-ruby input."
+              echo "::notice::Selected ruby/setup-ruby compatibility path for Ruby version '$RUBY_VERSION' because use-setup-ruby requested it."
               USE_FALLBACK="true"
               OVERRIDE_REASON="forced-ruby"
+              PATH_REASON="Forced by use-setup-ruby input"
             fi
           fi
         fi
@@ -293,7 +296,7 @@ runs:
           # Special versions and alternative implementations (e.g., head, jruby, truffleruby)
           SUPPORTED_SPECIAL_VERSIONS=""  # Empty for now, add versions as rv supports them (e.g., "head jruby truffleruby")
         
-          # Default to fallback unless version is in allowlist
+          # Default to the ruby/setup-ruby compatibility path unless version is in allowlist.
           USE_FALLBACK="true"
         
           # First check if it's a prefix match in special versions (head, jruby-*, truffleruby-*, etc.)
@@ -316,35 +319,38 @@ runs:
             if [ -n "$VERSION_PREFIX" ]; then
               for allowed_version in $SUPPORTED_NUMERIC_VERSIONS; do
                 if [ "$VERSION_PREFIX" = "$allowed_version" ]; then
-                  echo "Ruby version '$RUBY_VERSION' is supported by setup-ruby-flash."
+                  echo "Selected rv fast path for Ruby version '$RUBY_VERSION'."
                   USE_FALLBACK="false"
+                  PATH_REASON="Supported by rv fast path"
                   break
                 fi
               done
             fi
           fi
         
-          # If still using fallback, show appropriate message
+          # If still using the compatibility path, show appropriate message.
           if [ "$USE_FALLBACK" = "true" ]; then
             ALL_SUPPORTED="$SUPPORTED_NUMERIC_VERSIONS"
             if [ -n "$SUPPORTED_SPECIAL_VERSIONS" ]; then
               ALL_SUPPORTED="$ALL_SUPPORTED $SUPPORTED_SPECIAL_VERSIONS"
             fi
-            echo "::notice::Ruby version '$RUBY_VERSION' is not supported by setup-ruby-flash (only$ALL_SUPPORTED supported). Falling back to ruby/setup-ruby."
+            PATH_REASON="rv fast path currently supports: $ALL_SUPPORTED"
+            echo "::notice::Selected ruby/setup-ruby compatibility path for Ruby version '$RUBY_VERSION' because $PATH_REASON."
           fi
         fi
         
         echo "use-fallback=$USE_FALLBACK" >> $GITHUB_OUTPUT
         echo "ruby-version=$RUBY_VERSION" >> $GITHUB_OUTPUT
+        echo "path-reason=$PATH_REASON" >> $GITHUB_OUTPUT
 
-    - name: Start fallback timer
+    - name: Start ruby/setup-ruby compatibility timer
       if: steps.check-support.outputs.use-fallback == 'true'
       id: fallback-start
       shell: bash
       run: |
         echo "start-time=$(date +%s)" >> $GITHUB_OUTPUT
 
-    - name: Setup Ruby with ruby/setup-ruby (fallback)
+    - name: Setup Ruby with ruby/setup-ruby (compatibility path)
       if: steps.check-support.outputs.use-fallback == 'true'
       uses: ruby/setup-ruby@v1
       with:
@@ -355,7 +361,7 @@ runs:
         working-directory: ${{ inputs.working-directory }}
         cache-version: ${{ inputs.cache-version }}
 
-    - name: End fallback timer
+    - name: End ruby/setup-ruby compatibility timer
       if: steps.check-support.outputs.use-fallback == 'true'
       id: fallback-end
       shell: bash
@@ -364,7 +370,21 @@ runs:
         START_TIME=${{ steps.fallback-start.outputs.start-time }}
         ELAPSED=$((END_TIME - START_TIME))
         echo "elapsed=$ELAPSED" >> $GITHUB_OUTPUT
-        echo "setup-ruby fallback completed in ${ELAPSED}s"
+        echo "ruby/setup-ruby compatibility path completed in ${ELAPSED}s"
+        {
+          echo "### setup-ruby-flash Summary ⚡"
+          echo ""
+          echo "| Component | Value |"
+          echo "|-----------|-------|"
+          echo "| Requested Ruby Version | ${{ inputs.ruby-version }} |"
+          echo "| Resolved Ruby Version | ${{ steps.check-support.outputs.ruby-version }} |"
+          echo "| Selected Path | ruby/setup-ruby compatibility path |"
+          echo "| Reason | ${{ steps.check-support.outputs.path-reason }} |"
+          echo "| RubyGems Input | ${{ inputs.rubygems }} |"
+          echo "| Bundler Input | ${{ inputs.bundler }} |"
+          echo "| Bundler Cache | ${{ inputs.bundler-cache }} |"
+          echo "| Setup Time | ${ELAPSED}s |"
+        } >> "$GITHUB_STEP_SUMMARY"
 
     - name: Validate platform
       if: steps.check-support.outputs.use-fallback != 'true'
