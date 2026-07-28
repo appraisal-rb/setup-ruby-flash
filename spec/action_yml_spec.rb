@@ -64,6 +64,12 @@ RSpec.describe 'action.yml' do
     expect(script).to include('setup-ruby-flash Summary')
     expect(script).to include("INSTALLED_RUBY_VERSION=$(ruby -e 'print RUBY_DESCRIPTION'")
     expect(script).to include('Installed Ruby Version | $INSTALLED_RUBY_VERSION')
+    expect(script).to include('case "${{ steps.check-support.outputs.ruby-version }}" in')
+    expect(script).to include('*head*)')
+    expect(script).to include('RUBY_REVISION')
+    expect(script).to include('JRUBY_REVISION')
+    expect(script).to include('TruffleRuby::BUILD_REVISION')
+    expect(script).to include('Ruby Build Revision | $RUBY_BUILD_REVISION')
     expect(script).to include('Selected Path | ruby/setup-ruby compatibility path')
     expect(script).to include('Setup Time | ${ELAPSED}s')
   end

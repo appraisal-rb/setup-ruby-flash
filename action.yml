@@ -370,6 +370,12 @@ runs:
         START_TIME=${{ steps.fallback-start.outputs.start-time }}
         ELAPSED=$((END_TIME - START_TIME))
         INSTALLED_RUBY_VERSION=$(ruby -e 'print RUBY_DESCRIPTION' 2>/dev/null || true)
+        RUBY_BUILD_REVISION=""
+        case "${{ steps.check-support.outputs.ruby-version }}" in
+          *head*)
+            RUBY_BUILD_REVISION=$(ruby -e 'revisions = []; revisions << RUBY_REVISION if defined?(RUBY_REVISION) && !RUBY_REVISION.to_s.empty?; revisions << JRUBY_REVISION if defined?(JRUBY_REVISION) && !JRUBY_REVISION.to_s.empty?; revisions << TruffleRuby::BUILD_REVISION if defined?(TruffleRuby::BUILD_REVISION) && !TruffleRuby::BUILD_REVISION.to_s.empty?; print revisions.uniq.join(" ")' 2>/dev/null || true)
+            ;;
+        esac
         echo "elapsed=$ELAPSED" >> $GITHUB_OUTPUT
         echo "ruby/setup-ruby compatibility path completed in ${ELAPSED}s"
         {
@@ -381,6 +387,9 @@ runs:
           echo "| Resolved Ruby Version | ${{ steps.check-support.outputs.ruby-version }} |"
           if [ -n "$INSTALLED_RUBY_VERSION" ]; then
             echo "| Installed Ruby Version | $INSTALLED_RUBY_VERSION |"
+          fi
+          if [ -n "$RUBY_BUILD_REVISION" ]; then
+            echo "| Ruby Build Revision | $RUBY_BUILD_REVISION |"
           fi
           echo "| Selected Path | ruby/setup-ruby compatibility path |"
           echo "| Reason | ${{ steps.check-support.outputs.path-reason }} |"
