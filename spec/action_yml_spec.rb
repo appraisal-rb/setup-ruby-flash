@@ -34,6 +34,14 @@ RSpec.describe 'action.yml' do
     expect(script).to include('gem-install-retries must be a positive integer')
   end
 
+  it 'exports an absolute Bundler path for subsequent workflow steps' do
+    install_step = steps.fetch(step_names.index('Install gems with rv'))
+    script = install_step.fetch('run')
+
+    expect(script).to include('BUNDLE_PATH_VALUE="$PWD/vendor/bundle"')
+    expect(script).to include('echo "BUNDLE_PATH=$BUNDLE_PATH_VALUE" >> "$GITHUB_ENV"')
+  end
+
   it 'keeps ore opt-in instead of treating bundler-cache as an ore alias' do
     ore_step = steps.fetch(step_names.index('Determine if ore should be installed'))
     script = ore_step.fetch('run')

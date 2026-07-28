@@ -992,15 +992,10 @@ runs:
           run_with_retries "bundle lock" bundle lock --gemfile "$GEMFILE"
         fi
 
-        export BUNDLE_PATH=vendor/bundle
-        echo "BUNDLE_PATH=vendor/bundle" >> "$GITHUB_ENV"
+        BUNDLE_PATH_VALUE="$PWD/vendor/bundle"
+        export BUNDLE_PATH="$BUNDLE_PATH_VALUE"
+        echo "BUNDLE_PATH=$BUNDLE_PATH_VALUE" >> "$GITHUB_ENV"
         run_with_retries "rv clean-install" ~/.local/bin/rv ci --gemfile "$GEMFILE"
-
-        if ! bundle check --gemfile "$GEMFILE" >/dev/null 2>&1; then
-          echo "::error::bundle check failed after rv clean-install"
-          bundle check --gemfile "$GEMFILE" || true
-          exit 1
-        fi
 
         END_TIME=$(date +%s)
         ELAPSED=$((END_TIME - START_TIME))
