@@ -4,6 +4,10 @@
 
 ### Added
 
+- **Ruby Summary Detail**: Workflow summaries now show the installed Ruby patch version when it differs from the selected Ruby line
+  - rv fast-path summaries show values like `4.0 (4.0.6)`
+  - ruby/setup-ruby compatibility summaries include a separate installed Ruby description row for engines and head builds
+
 - **bundler-cache Input**: New `bundler-cache` input for seamless compatibility with ruby/setup-ruby
   - Uses `rv clean-install` for modern Ruby versions supported by setup-ruby-flash
   - Retries Bundler lockfile generation and rv gem installation without changing Gemfile sources

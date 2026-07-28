@@ -62,7 +62,26 @@ RSpec.describe 'action.yml' do
     script = fallback_timer_step.fetch('run')
 
     expect(script).to include('setup-ruby-flash Summary')
+    expect(script).to include("INSTALLED_RUBY_VERSION=$(ruby -e 'print RUBY_DESCRIPTION'")
+    expect(script).to include('Installed Ruby Version | $INSTALLED_RUBY_VERSION')
     expect(script).to include('Selected Path | ruby/setup-ruby compatibility path')
     expect(script).to include('Setup Time | ${ELAPSED}s')
+  end
+
+  it 'prints the full rv Ruby version when it differs from the selected version' do
+    summary_steps = [
+      steps.fetch(step_names.index('Install gems with rv')),
+      steps.fetch(step_names.index('Generate summary (Ruby only)')),
+      steps.fetch(step_names.index('Install gems with ore'))
+    ]
+
+    summary_steps.each do |step|
+      script = step.fetch('run')
+
+      expect(script).to include('RUBY_VERSION_SUMMARY="${{ steps.detect-ruby.outputs.version }}"')
+      expect(script).to include('FULL_RUBY_VERSION="${{ steps.setup.outputs.ruby-full-version }}"')
+      expect(script).to include('RUBY_VERSION_SUMMARY="$RUBY_VERSION_SUMMARY ($FULL_RUBY_VERSION)"')
+      expect(script).to include('Ruby Version | $RUBY_VERSION_SUMMARY')
+    end
   end
 end

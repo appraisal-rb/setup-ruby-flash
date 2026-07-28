@@ -369,6 +369,7 @@ runs:
         END_TIME=$(date +%s)
         START_TIME=${{ steps.fallback-start.outputs.start-time }}
         ELAPSED=$((END_TIME - START_TIME))
+        INSTALLED_RUBY_VERSION=$(ruby -e 'print RUBY_DESCRIPTION' 2>/dev/null || true)
         echo "elapsed=$ELAPSED" >> $GITHUB_OUTPUT
         echo "ruby/setup-ruby compatibility path completed in ${ELAPSED}s"
         {
@@ -378,6 +379,9 @@ runs:
           echo "|-----------|-------|"
           echo "| Requested Ruby Version | ${{ inputs.ruby-version }} |"
           echo "| Resolved Ruby Version | ${{ steps.check-support.outputs.ruby-version }} |"
+          if [ -n "$INSTALLED_RUBY_VERSION" ]; then
+            echo "| Installed Ruby Version | $INSTALLED_RUBY_VERSION |"
+          fi
           echo "| Selected Path | ruby/setup-ruby compatibility path |"
           echo "| Reason | ${{ steps.check-support.outputs.path-reason }} |"
           echo "| RubyGems Input | ${{ inputs.rubygems }} |"
@@ -1029,12 +1033,17 @@ runs:
         if [ -z "$BUNDLER_VERSION" ]; then
           BUNDLER_VERSION=$(bundle --version 2>/dev/null | awk '{print $NF}' || echo "default")
         fi
+        RUBY_VERSION_SUMMARY="${{ steps.detect-ruby.outputs.version }}"
+        FULL_RUBY_VERSION="${{ steps.setup.outputs.ruby-full-version }}"
+        if [ -n "$FULL_RUBY_VERSION" ] && [ "$FULL_RUBY_VERSION" != "$RUBY_VERSION_SUMMARY" ]; then
+          RUBY_VERSION_SUMMARY="$RUBY_VERSION_SUMMARY ($FULL_RUBY_VERSION)"
+        fi
 
         echo "### setup-ruby-flash Summary ⚡" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "| Component | Value |" >> $GITHUB_STEP_SUMMARY
         echo "|-----------|-------|" >> $GITHUB_STEP_SUMMARY
-        echo "| Ruby Version | ${{ steps.detect-ruby.outputs.version }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Ruby Version | $RUBY_VERSION_SUMMARY |" >> $GITHUB_STEP_SUMMARY
         echo "| RubyGems Version | $RUBYGEMS_VERSION |" >> $GITHUB_STEP_SUMMARY
         echo "| Bundler Version | $BUNDLER_VERSION |" >> $GITHUB_STEP_SUMMARY
         echo "| rv Version | ${{ steps.rv-version.outputs.version }} |" >> $GITHUB_STEP_SUMMARY
@@ -1055,12 +1064,17 @@ runs:
         if [ -z "$BUNDLER_VERSION" ]; then
           BUNDLER_VERSION=$(bundle --version 2>/dev/null | awk '{print $NF}' || echo "default")
         fi
+        RUBY_VERSION_SUMMARY="${{ steps.detect-ruby.outputs.version }}"
+        FULL_RUBY_VERSION="${{ steps.setup.outputs.ruby-full-version }}"
+        if [ -n "$FULL_RUBY_VERSION" ] && [ "$FULL_RUBY_VERSION" != "$RUBY_VERSION_SUMMARY" ]; then
+          RUBY_VERSION_SUMMARY="$RUBY_VERSION_SUMMARY ($FULL_RUBY_VERSION)"
+        fi
 
         echo "### setup-ruby-flash Summary ⚡" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "| Component | Value |" >> $GITHUB_STEP_SUMMARY
         echo "|-----------|-------|" >> $GITHUB_STEP_SUMMARY
-        echo "| Ruby Version | ${{ steps.detect-ruby.outputs.version }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Ruby Version | $RUBY_VERSION_SUMMARY |" >> $GITHUB_STEP_SUMMARY
         echo "| RubyGems Version | $RUBYGEMS_VERSION |" >> $GITHUB_STEP_SUMMARY
         echo "| Bundler Version | $BUNDLER_VERSION |" >> $GITHUB_STEP_SUMMARY
         echo "| rv Version | ${{ steps.rv-version.outputs.version }} |" >> $GITHUB_STEP_SUMMARY
@@ -1494,13 +1508,18 @@ runs:
         if [ -z "$BUNDLER_VERSION" ]; then
           BUNDLER_VERSION=$(bundle --version 2>/dev/null | awk '{print $NF}' || echo "default")
         fi
+        RUBY_VERSION_SUMMARY="${{ steps.detect-ruby.outputs.version }}"
+        FULL_RUBY_VERSION="${{ steps.setup.outputs.ruby-full-version }}"
+        if [ -n "$FULL_RUBY_VERSION" ] && [ "$FULL_RUBY_VERSION" != "$RUBY_VERSION_SUMMARY" ]; then
+          RUBY_VERSION_SUMMARY="$RUBY_VERSION_SUMMARY ($FULL_RUBY_VERSION)"
+        fi
 
         # Summary
         echo "### setup-ruby-flash Summary ⚡" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "| Component | Value |" >> $GITHUB_STEP_SUMMARY
         echo "|-----------|-------|" >> $GITHUB_STEP_SUMMARY
-        echo "| Ruby Version | ${{ steps.detect-ruby.outputs.version }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Ruby Version | $RUBY_VERSION_SUMMARY |" >> $GITHUB_STEP_SUMMARY
         echo "| RubyGems Version | $RUBYGEMS_VERSION |" >> $GITHUB_STEP_SUMMARY
         echo "| Bundler Version | $BUNDLER_VERSION |" >> $GITHUB_STEP_SUMMARY
         echo "| rv Version | ${{ steps.rv-version.outputs.version }} |" >> $GITHUB_STEP_SUMMARY

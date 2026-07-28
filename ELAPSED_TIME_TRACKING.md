@@ -59,6 +59,8 @@ setup-ruby-flash now tracks elapsed time for all major build and install operati
 
 All timing information is displayed in the GitHub Actions step summary:
 
+When the installed Ruby patch version is available and differs from the selected Ruby line, the fast path shows both values, for example `4.0 (4.0.6)`.
+
 ### Fast Path (rv + gem installation)
 
 ```markdown
@@ -66,7 +68,7 @@ All timing information is displayed in the GitHub Actions step summary:
 
 | Component | Value |
 |-----------|-------|
-| Ruby Version | 3.4 |
+| Ruby Version | 4.0 (4.0.6) |
 | RubyGems Version | 3.5.0 |
 | Bundler Version | 2.5.0 |
 | rv Version | 0.4.1 |
@@ -85,7 +87,7 @@ All timing information is displayed in the GitHub Actions step summary:
 
 | Component | Value |
 |-----------|-------|
-| Ruby Version | 3.4 |
+| Ruby Version | 4.0 (4.0.6) |
 | RubyGems Version | 3.5.0 |
 | Bundler Version | 2.5.0 |
 | rv Version | main |
