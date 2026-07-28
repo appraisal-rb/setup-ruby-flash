@@ -60,11 +60,12 @@ setup-ruby-flash now tracks elapsed time for all major build and install operati
 All timing information is displayed in the GitHub Actions step summary:
 
 When the installed Ruby patch version is available and differs from the selected Ruby line, the fast path shows both values, for example `4.0 (4.0.6)`.
+When the setup-ruby-flash action ref can be resolved at runtime, the summary heading includes it.
 
 ### Fast Path (rv + gem installation)
 
 ```markdown
-### setup-ruby-flash Summary ⚡
+### setup-ruby-flash Summary v1.2.3 ⚡
 
 | Component | Value |
 |-----------|-------|
@@ -83,7 +84,7 @@ When the installed Ruby patch version is available and differs from the selected
 ### With Build from Source
 
 ```markdown
-### setup-ruby-flash Summary ⚡
+### setup-ruby-flash Summary v1.2.3 ⚡
 
 | Component | Value |
 |-----------|-------|

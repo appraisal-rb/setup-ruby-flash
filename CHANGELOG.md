@@ -5,6 +5,7 @@
 ### Added
 
 - **Ruby Summary Detail**: Workflow summaries now show the installed Ruby patch version when it differs from the selected Ruby line
+  - Summary headings include the setup-ruby-flash action version when it can be resolved at runtime
   - rv fast-path summaries show values like `4.0 (4.0.6)`
   - ruby/setup-ruby compatibility summaries include a separate installed Ruby description row for engines and head builds
   - `*-head` compatibility summaries include a Ruby build revision row when the runtime exposes one

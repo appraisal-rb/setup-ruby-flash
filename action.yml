@@ -343,6 +343,34 @@ runs:
         echo "ruby-version=$RUBY_VERSION" >> $GITHUB_OUTPUT
         echo "path-reason=$PATH_REASON" >> $GITHUB_OUTPUT
 
+    - name: Resolve setup-ruby-flash summary title
+      id: summary-title
+      shell: bash
+      run: |
+        ACTION_REF="${{ github.action_ref }}"
+        VERSION="${ACTION_REF#refs/tags/}"
+        VERSION="${VERSION#refs/heads/}"
+
+        if [ -z "$VERSION" ] && [ -n "${GITHUB_ACTION_PATH:-}" ] && git -C "$GITHUB_ACTION_PATH" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+          VERSION=$(git -C "$GITHUB_ACTION_PATH" describe --tags --always --dirty 2>/dev/null || true)
+        fi
+
+        if [ -n "$VERSION" ]; then
+          if [[ "$VERSION" =~ ^v[0-9]+([.][0-9]+.*)?$ ]]; then
+            LABEL="$VERSION"
+          elif [[ "$VERSION" =~ ^[0-9]+([.][0-9]+.*)?$ ]]; then
+            LABEL="v$VERSION"
+          else
+            LABEL="@$VERSION"
+          fi
+          TITLE="setup-ruby-flash Summary ${LABEL} ⚡"
+        else
+          TITLE="setup-ruby-flash Summary ⚡"
+        fi
+
+        echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+        echo "title=$TITLE" >> "$GITHUB_OUTPUT"
+
     - name: Start ruby/setup-ruby compatibility timer
       if: steps.check-support.outputs.use-fallback == 'true'
       id: fallback-start
@@ -379,7 +407,7 @@ runs:
         echo "elapsed=$ELAPSED" >> $GITHUB_OUTPUT
         echo "ruby/setup-ruby compatibility path completed in ${ELAPSED}s"
         {
-          echo "### setup-ruby-flash Summary ⚡"
+          echo "### ${{ steps.summary-title.outputs.title }}"
           echo ""
           echo "| Component | Value |"
           echo "|-----------|-------|"
@@ -1048,7 +1076,7 @@ runs:
           RUBY_VERSION_SUMMARY="$RUBY_VERSION_SUMMARY ($FULL_RUBY_VERSION)"
         fi
 
-        echo "### setup-ruby-flash Summary ⚡" >> $GITHUB_STEP_SUMMARY
+        echo "### ${{ steps.summary-title.outputs.title }}" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "| Component | Value |" >> $GITHUB_STEP_SUMMARY
         echo "|-----------|-------|" >> $GITHUB_STEP_SUMMARY
@@ -1079,7 +1107,7 @@ runs:
           RUBY_VERSION_SUMMARY="$RUBY_VERSION_SUMMARY ($FULL_RUBY_VERSION)"
         fi
 
-        echo "### setup-ruby-flash Summary ⚡" >> $GITHUB_STEP_SUMMARY
+        echo "### ${{ steps.summary-title.outputs.title }}" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "| Component | Value |" >> $GITHUB_STEP_SUMMARY
         echo "|-----------|-------|" >> $GITHUB_STEP_SUMMARY
@@ -1524,7 +1552,7 @@ runs:
         fi
 
         # Summary
-        echo "### setup-ruby-flash Summary ⚡" >> $GITHUB_STEP_SUMMARY
+        echo "### ${{ steps.summary-title.outputs.title }}" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "| Component | Value |" >> $GITHUB_STEP_SUMMARY
         echo "|-----------|-------|" >> $GITHUB_STEP_SUMMARY

@@ -57,11 +57,25 @@ RSpec.describe 'action.yml' do
     expect(fallback_step.fetch('if')).to eq("steps.check-support.outputs.use-fallback == 'true'")
   end
 
+  it 'resolves a versioned summary title from the action ref when available' do
+    summary_title_step = steps.fetch(step_names.index('Resolve setup-ruby-flash summary title'))
+    script = summary_title_step.fetch('run')
+
+    expect(script).to include('ACTION_REF="${{ github.action_ref }}"')
+    expect(script).to include('VERSION="${ACTION_REF#refs/tags/}"')
+    expect(script).to include('git -C "$GITHUB_ACTION_PATH" describe --tags --always --dirty')
+    expect(script).to include('LABEL="v$VERSION"')
+    expect(script).to include('LABEL="@$VERSION"')
+    expect(script).to include('TITLE="setup-ruby-flash Summary ${LABEL} ⚡"')
+    expect(script).to include('TITLE="setup-ruby-flash Summary ⚡"')
+    expect(script).to include('echo "title=$TITLE" >> "$GITHUB_OUTPUT"')
+  end
+
   it 'writes a setup-ruby-flash summary for the ruby/setup-ruby compatibility path' do
     fallback_timer_step = steps.fetch(step_names.index('End ruby/setup-ruby compatibility timer'))
     script = fallback_timer_step.fetch('run')
 
-    expect(script).to include('setup-ruby-flash Summary')
+    expect(script).to include('steps.summary-title.outputs.title')
     expect(script).to include("INSTALLED_RUBY_VERSION=$(ruby -e 'print RUBY_DESCRIPTION'")
     expect(script).to include('Installed Ruby Version | $INSTALLED_RUBY_VERSION')
     expect(script).to include('case "${{ steps.check-support.outputs.ruby-version }}" in')
@@ -88,6 +102,7 @@ RSpec.describe 'action.yml' do
       expect(script).to include('FULL_RUBY_VERSION="${{ steps.setup.outputs.ruby-full-version }}"')
       expect(script).to include('RUBY_VERSION_SUMMARY="$RUBY_VERSION_SUMMARY ($FULL_RUBY_VERSION)"')
       expect(script).to include('Ruby Version | $RUBY_VERSION_SUMMARY')
+      expect(script).to include('steps.summary-title.outputs.title')
     end
   end
 end
