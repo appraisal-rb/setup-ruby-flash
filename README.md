@@ -174,6 +174,7 @@ When `ruby-version` is set to `default` (the default), setup-ruby-flash reads fr
 | `ore-install`          | Run `ore install` command to install gems from lockfile (requires ore to be installed)                                         | `false`               |
 | `bundler-cache`        | Enable gem caching and installation for ruby/setup-ruby compatibility; modern Ruby versions use `rv clean-install`             | `false`               |
 | `main-bundle-install`  | Control main Gemfile bundle installation: `auto`, `true`, or `false`; use `false` for appraisal-only workflows                | `auto`                |
+| `manual-compatibility-bundle` | Use the action's retrying Bundler installer after ruby/setup-ruby prepares a compatibility-path Ruby                         | `false`               |
 | `working-directory`    | Directory for version files and Gemfile                                                                                        | `.`                   |
 | `cache-version`        | Cache version string for invalidation                                                                                          | `v1`                  |
 | `rv-version`           | Version of rv to install (ignored if `rv-git-ref` is set)                                                                      | `latest`              |

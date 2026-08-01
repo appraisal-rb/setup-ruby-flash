@@ -110,6 +110,8 @@
   - Fixes issue where ore built with Ruby 3.4.8 was being used with Ruby 4.0.1
 - **Grep Exit Code**: Fixed grep command failing on non-numeric Ruby versions (jruby, head, etc.) by adding `|| true`
 
+- Add a retrying compatibility Bundler installation mode for newly published runtime dependencies.
+
 ### Notes
 
 - Building from source is intended for testing only; production CI should use release versions

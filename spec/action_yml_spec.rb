@@ -21,6 +21,8 @@ RSpec.describe 'action.yml' do
     expect(inputs.fetch('appraisal-install-retries').fetch('default')).to eq('2')
     expect(inputs.fetch('main-bundle-install').fetch('default')).to eq('auto')
     expect(inputs.fetch('main-bundle-install').fetch('description')).to include('appraisal-only workflows')
+    expect(inputs.fetch('manual-compatibility-bundle').fetch('default')).to eq('false')
+    expect(inputs.fetch('manual-compatibility-bundle').fetch('description')).to include('retrying Bundler installer')
   end
 
   it 'uses rv clean-install for modern Ruby bundler-cache installs' do
@@ -80,6 +82,8 @@ RSpec.describe 'action.yml' do
 
     expect(plan_index).to be < compatibility_index
     expect(script).to include('main-bundle-install must be one of: auto, true, false')
+    expect(script).to include('manual-compatibility-bundle must be true or false')
+    expect(script).to include('MANUAL_COMPATIBILITY_BUNDLE_INPUT="${{ inputs.manual-compatibility-bundle }}"')
     expect(script).to include('INSTALL_PRE_BUNDLE_GEMS="${{ inputs.pre-bundle-gems !=')
     expect(script).to include('FAST_BUNDLER_INSTALL="false"')
     expect(script).to include('MANUAL_COMPATIBILITY_BUNDLE="false"')

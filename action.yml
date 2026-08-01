@@ -71,6 +71,16 @@ inputs:
     required: false
     default: "auto"
 
+  manual-compatibility-bundle:
+    description: |
+      Run the retrying Bundler installer after ruby/setup-ruby prepares a
+      compatibility-path Ruby, instead of allowing ruby/setup-ruby to perform
+      its one-shot bundler-cache installation. Use this when a just-published
+      runtime dependency may not yet be visible to every configured gem source.
+      Either 'true' or 'false'.
+    required: false
+    default: "false"
+
   working-directory:
     description: |
       Working directory for resolving version files (.ruby-version, etc.) and Gemfile.
@@ -401,6 +411,7 @@ runs:
       run: |
         USE_FALLBACK="${{ steps.check-support.outputs.use-fallback }}"
         MAIN_BUNDLE_INSTALL="${{ inputs.main-bundle-install }}"
+        MANUAL_COMPATIBILITY_BUNDLE_INPUT="${{ inputs.manual-compatibility-bundle }}"
         BUNDLER_CACHE="${{ inputs.bundler-cache }}"
         ORE_INSTALL="${{ inputs.ore-install }}"
         INSTALL_PRE_BUNDLE_GEMS="${{ inputs.pre-bundle-gems != '' && 'true' || 'false' }}"
@@ -428,6 +439,14 @@ runs:
             ;;
         esac
 
+        case "$MANUAL_COMPATIBILITY_BUNDLE_INPUT" in
+          true|false) ;;
+          *)
+            echo "::error::manual-compatibility-bundle must be true or false"
+            exit 1
+            ;;
+        esac
+
         CACHE_APPRAISAL="false"
         if [ "$INSTALL_APPRAISAL" = "true" ] && [ "$APPRAISAL_CACHE" = "true" ]; then
           CACHE_APPRAISAL="true"
@@ -440,7 +459,7 @@ runs:
 
         MANUAL_COMPATIBILITY_BUNDLE="false"
         if [ "$USE_FALLBACK" = "true" ] && [ "$INSTALL_MAIN_BUNDLE" = "true" ]; then
-          if [ "$INSTALL_PRE_BUNDLE_GEMS" = "true" ] || [ "$INSTALL_APPRAISAL" = "true" ] || [ "$INSTALL_PRE_APPRAISAL_ROOT_GEMFILE_GEMS" = "true" ]; then
+          if [ "$MANUAL_COMPATIBILITY_BUNDLE_INPUT" = "true" ] || [ "$INSTALL_PRE_BUNDLE_GEMS" = "true" ] || [ "$INSTALL_APPRAISAL" = "true" ] || [ "$INSTALL_PRE_APPRAISAL_ROOT_GEMFILE_GEMS" = "true" ]; then
             MANUAL_COMPATIBILITY_BUNDLE="true"
           fi
         fi
