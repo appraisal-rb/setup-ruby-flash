@@ -3,8 +3,8 @@
 source 'https://gem.coop'
 
 gem 'benchmark'
-gem 'kettle-dev', '~> 1.2', '>= 1.2.4'
-gem 'kettle-test', '~> 1.0', '>= 1.0.7'
+gem 'kettle-dev', '~> 2.5', '>= 2.5.10'
+gem 'kettle-test', '~> 2.0', '>= 2.0.17'
 gem 'rake', '~> 13.0'
 gem 'rspec', '~> 3.13'
-gem 'rubocop-lts', '~> 24.0', '>= 24.0.2'
+gem 'rubocop-lts', '~> 24.2', '>= 24.2.2'
