@@ -3,7 +3,7 @@
 source 'https://gem.coop'
 
 gem 'benchmark'
-gem 'kettle-dev', '~> 2.5', '>= 2.5.10'
+gem 'kettle-dev', '~> 3.0', '>= 3.0.6'
 gem 'kettle-test', '~> 2.0', '>= 2.0.17'
 gem 'rake', '~> 13.0'
 gem 'rspec', '~> 3.13'
