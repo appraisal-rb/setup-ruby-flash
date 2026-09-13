@@ -98,6 +98,7 @@
 - Cache keys now include `build-from-source` flag to prevent collision between git refs and release versions
 - Improved version resolution to handle both release versions and git references
 - **Bundler Installation Optimization**: Skip Bundler installation when `rubygems: latest` is used, as the latest RubyGems includes the latest Bundler (they are always released together)
+- **README**: Made rv the headline feature; ore support is now clearly marked experimental throughout, and every previously-unvalidated ore speed/percentage claim was removed
 
 ### Fixed
 
@@ -111,6 +112,11 @@
 - **Grep Exit Code**: Fixed grep command failing on non-numeric Ruby versions (jruby, head, etc.) by adding `|| true`
 
 - Add a retrying compatibility Bundler installation mode for newly published runtime dependencies.
+- **Stale Cache Reconcile**: `rv clean-install` now runs with `--force` whenever the bundler-gems cache restore was not an exact hit
+  - `actions/cache`'s `restore-keys` fallback can restore a stale, partial-match cache whenever `Gemfile.lock` changes
+  - `rv ci` only checks whether a gem name is present, not whether its installed version satisfies the lockfile, so a stale restore could leave an outdated gem in place and get silently skipped
+  - Previously surfaced as `Bundler::SolveFailure: ... could not be found in locally installed gems`; in one reproduction of the stale-cache path, `rv ci` hung indefinitely instead
+  - An exact cache hit still skips `--force`, so the fast path stays fast
 
 ### Notes
 
