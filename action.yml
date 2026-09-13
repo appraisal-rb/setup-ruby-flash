@@ -1218,7 +1218,22 @@ runs:
         BUNDLE_PATH_VALUE="$PWD/vendor/bundle"
         export BUNDLE_PATH="$BUNDLE_PATH_VALUE"
         echo "BUNDLE_PATH=$BUNDLE_PATH_VALUE" >> "$GITHUB_ENV"
-        run_with_retries "rv clean-install" ~/.local/bin/rv ci --gemfile "$GEMFILE"
+
+        # A restored cache is not necessarily an exact match: actions/cache's
+        # restore-keys fallback happily returns the newest cache whose key
+        # PREFIX matches, even when the exact (Gemfile.lock-hash-suffixed) key
+        # missed because the lockfile changed. `rv ci` only looks at whether a
+        # gem name is present in vendor/bundle, not whether the installed
+        # version satisfies the current Gemfile.lock, so a stale restore can
+        # leave an outdated gem in place and silently skip reinstalling the
+        # newly-locked version. Force a full reconcile against the lockfile
+        # whenever we did not get an exact cache hit, so a partial/stale
+        # restore can never masquerade as a satisfied bundle.
+        RV_CI_ARGS=(--gemfile "$GEMFILE")
+        if [ "${{ steps.cache-bundler-gems.outputs.cache-hit }}" != "true" ]; then
+          RV_CI_ARGS+=(--force)
+        fi
+        run_with_retries "rv clean-install" ~/.local/bin/rv ci "${RV_CI_ARGS[@]}"
 
         END_TIME=$(date +%s)
         ELAPSED=$((END_TIME - START_TIME))
