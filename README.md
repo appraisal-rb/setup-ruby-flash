@@ -509,8 +509,7 @@ setup-ruby-flash is a true drop-in replacement for `ruby/setup-ruby`. Simply cha
 ore support in setup-ruby-flash is experimental:
 
 - It is not exercised by the default `bundler-cache: true` path, so it gets less real-world coverage than `rv clean-install`.
-- We are not making performance claims about ore here — none have been independently validated in this project's own benchmarks. If you need a specific, verified number, measure it in your own CI.
-- Treat `ore-install`, `ore-setup`, `ore-version`, `ore-git-ref`, and `gfgo-git-ref` as an early-access integration: useful to try, not yet something to depend on for production CI without your own validation.
+- [ore][ore] is no longer actively maintained upstream, so this project is not promoting it or making it a headline feature. Support remains available as an opt-in integration for existing users, via `ore-install`, `ore-setup`, `ore-version`, `ore-git-ref`, and `gfgo-git-ref`.
 
 Use `bundle exec` to run gem commands after ore installs your gems. ore is created by [@seuros](https://github.com/seuros), a long time Rubyist, and prolific [writer](https://www.seuros.com/blog/rubygems-coup-when-parasites-take-the-host/).
 
