@@ -24,24 +24,22 @@
 [ci-r-heads]: https://github.com/appraisal-rb/setup-ruby-flash/actions/workflows/runtime-heads.yml
 [ci-r-heads-img]: https://github.com/appraisal-rb/setup-ruby-flash/actions/workflows/runtime-heads.yml/badge.svg
 
-A _fast_ GitHub Action for fast Ruby environment setup using [rv](https://github.com/spinel-coop/rv) for Ruby installation and [ore](https://github.com/contriboss/ore-light) for gem management.
+A _fast_ GitHub Action for fast Ruby environment setup using [rv](https://github.com/spinel-coop/rv) for Ruby installation and Bundler-compatible gem installation (`rv clean-install`).
 
 **⚡ Install Ruby in under 2 seconds** — no compilation required!
-
-**⚡ Install Gems 50% faster** — using ORE ✅️!
 
 ## Features
 
 - 🚀 **Lightning-fast Ruby installation** via prebuilt binaries from rv
-- 📦 **Rapid gem installation** with ore (Bundler-compatible, ~50% faster)
+- 📦 **Gem installation via `rv clean-install`** (Bundler-compatible, no separate gem manager to install)
 - 💾 **Intelligent caching** for both Ruby and gems
-- 🔒 **Security auditing** via `ore audit`
 - 🐧 **Linux & macOS support** (x86_64 and ARM64)
 - ☕️ **Gitea [Actions](https://docs.gitea.com/usage/actions/overview) support**
 - 🦊 **Forgejo [Actions](https://forgejo.org/docs/next/admin/actions/) support**
 - 🧊 **Codeberg [Actions](https://docs.codeberg.org/ci/actions/) support**
 - 🐙 **GitHub [Actions](https://github.com/marketplace/actions/setup-ruby-with-rv-and-ore) support**
 - 🔄 **Automatic ruby/setup-ruby compatibility path** for Ruby versions and implementations not handled by rv
+- 🧪 **Experimental**: opt-in gem installation and security auditing via [ore](https://github.com/contriboss/ore-light) — see [Experimental: ore](#experimental-ore)
 
 ## Requirements
 
@@ -61,7 +59,7 @@ This means you can use setup-ruby-flash everywhere and get the best performance 
 
 | Ruby Version/Implementation | Behavior |
 | --- | --- |
-| Ruby 3.2, 3.3, 3.4, 4.0 (MRI) | ⚡ **Fast** - uses rv + ore |
+| Ruby 3.2, 3.3, 3.4, 4.0 (MRI) | ⚡ **Fast** - uses rv (`rv clean-install` for gems; [ore](#experimental-ore) optional and experimental) |
 | Ruby 2.7, 3.0, 3.1 (MRI) | 🔄 **Compatibility** - uses ruby/setup-ruby |
 | JRuby, TruffleRuby, ruby-head, etc. | 🔄 **Compatibility** - uses ruby/setup-ruby |
 
@@ -131,7 +129,9 @@ they are not full shell commands.
       nomono -v 1.1.0 --source https://gem.coop
 ```
 
-### Manual Ore Commands
+### Manual Ore Commands (Experimental)
+
+> ⚠️ **Experimental**: ore support is opt-in and not the default gem-install path. The default (`bundler-cache: true`) uses `rv clean-install`. See [Experimental: ore](#experimental-ore) before relying on this in production CI.
 
 Install ore without running `ore install` automatically, allowing manual ore commands:
 
@@ -170,8 +170,8 @@ When `ruby-version` is set to `default` (the default), setup-ruby-flash reads fr
 | `ruby-version`         | Ruby version to install (e.g., `3.4`, `3.4.1`). Use `ruby` for latest stable version, or `default` to read from version files. | `default`             |
 | `rubygems`             | RubyGems version: `default`, `latest`, or a version number (e.g., `3.5.0`)                                                     | `default`             |
 | `bundler`              | Bundler version: `Gemfile.lock`, `default`, `latest`, `none`, or a version number                                              | `Gemfile.lock`        |
-| `ore-setup`            | Install ore binary: `true`, `false`, or `auto` (installs if `ore-install` is enabled)                                          | `auto`                |
-| `ore-install`          | Run `ore install` command to install gems from lockfile (requires ore to be installed)                                         | `false`               |
+| `ore-setup` _(experimental)_ | Install ore binary: `true`, `false`, or `auto` (installs if `ore-install` is enabled) — see [Experimental: ore](#experimental-ore) | `auto`                |
+| `ore-install` _(experimental)_ | Run `ore install` command to install gems from lockfile (requires ore to be installed) — see [Experimental: ore](#experimental-ore) | `false`               |
 | `bundler-cache`        | Enable gem caching and installation for ruby/setup-ruby compatibility; modern Ruby versions use `rv clean-install`             | `false`               |
 | `main-bundle-install`  | Control main Gemfile bundle installation: `auto`, `true`, or `false`; use `false` for appraisal-only workflows                | `auto`                |
 | `manual-compatibility-bundle` | Use the action's retrying Bundler installer after ruby/setup-ruby prepares a compatibility-path Ruby                         | `false`               |
@@ -179,9 +179,9 @@ When `ruby-version` is set to `default` (the default), setup-ruby-flash reads fr
 | `cache-version`        | Cache version string for invalidation                                                                                          | `v1`                  |
 | `rv-version`           | Version of rv to install (ignored if `rv-git-ref` is set)                                                                      | `latest`              |
 | `rv-git-ref`           | Git branch, tag, or commit SHA to build rv from source                                                                         | `''`                  |
-| `ore-version`          | Version of ore to install (ignored if `ore-git-ref` is set)                                                                    | `latest`              |
-| `ore-git-ref`          | Git branch, tag, or commit SHA to build ore from source                                                                        | `''`                  |
-| `gfgo-git-ref`         | Git branch, tag, or commit SHA to build gemfile-go from source (requires `ore-git-ref`)                                        | `''`                  |
+| `ore-version` _(experimental)_ | Version of ore to install (ignored if `ore-git-ref` is set)                                                              | `latest`              |
+| `ore-git-ref` _(experimental)_ | Git branch, tag, or commit SHA to build ore from source                                                                  | `''`                  |
+| `gfgo-git-ref` _(experimental)_ | Git branch, tag, or commit SHA to build gemfile-go from source (requires `ore-git-ref`)                                 | `''`                  |
 | `skip-extensions`      | Skip building native extensions                                                                                                | `false`               |
 | `without-groups`       | Gem groups to exclude (comma-separated)                                                                                        | `''`                  |
 | `ruby-install-retries` | Number of retry attempts for Ruby installation (with exponential backoff)                                                      | `3`                   |
@@ -206,7 +206,7 @@ When `ruby-version` is set to `default` (the default), setup-ruby-flash reads fr
 | `rv-version`       | The installed rv version              |
 | `rubygems-version` | The installed RubyGems version        |
 | `bundler-version`  | The installed Bundler version         |
-| `ore-version`      | The installed ore version             |
+| `ore-version` _(experimental)_ | The installed ore version, if [ore](#experimental-ore) was installed |
 | `cache-hit`        | Whether gems were restored from cache |
 
 ## Examples
@@ -230,7 +230,7 @@ jobs:
       - uses: appraisal-rb/setup-ruby-flash@v1
         with:
           ruby-version: ${{ matrix.ruby }}
-          ore-install: true
+          bundler-cache: true
       - run: bundle exec rake test
 ```
 
@@ -240,7 +240,7 @@ jobs:
 - uses: appraisal-rb/setup-ruby-flash@v1
   with:
     ruby-version: "3.4"
-    ore-install: true
+    bundler-cache: true
     without-groups: "development,test"
 ```
 
@@ -252,7 +252,7 @@ jobs:
     ruby-version: ruby
     rubygems: latest
     bundler: latest
-    ore-install: true
+    bundler-cache: true
 ```
 
 ### Specific RubyGems Version
@@ -262,7 +262,7 @@ jobs:
   with:
     ruby-version: "3.4"
     rubygems: "3.5.0"
-    ore-install: true
+    bundler-cache: true
 ```
 
 ### Skip Native Extensions
@@ -271,7 +271,7 @@ jobs:
 - uses: appraisal-rb/setup-ruby-flash@v1
   with:
     ruby-version: "3.4"
-    ore-install: true
+    bundler-cache: true
     skip-extensions: true
 ```
 
@@ -281,7 +281,7 @@ jobs:
 - uses: appraisal-rb/setup-ruby-flash@v1
   with:
     ruby-version: "3.4"
-    ore-install: true
+    bundler-cache: true
     working-directory: "./my-app"
 ```
 
@@ -292,8 +292,7 @@ jobs:
   with:
     ruby-version: "3.4.1"
     rv-version: "0.4.0"
-    ore-version: "0.1.0"
-    ore-install: true
+    bundler-cache: true
 ```
 
 ### Custom Retry Configuration
@@ -315,7 +314,7 @@ Include documentation (ri/rdoc) for installed gems (default skips documentation 
 - uses: appraisal-rb/setup-ruby-flash@v1
   with:
     ruby-version: "3.4"
-    ore-install: true
+    bundler-cache: true
     no-document: false
 ```
 
@@ -337,7 +336,7 @@ jobs:
           ruby-version: ${{ matrix.ruby }}
           bundler-cache: true
       # Ruby 2.7, 3.0, 3.1 use ruby/setup-ruby (automatic compatibility path)
-      # Ruby 3.2, 3.3, 3.4 use rv + ore (fast path)
+      # Ruby 3.2, 3.3, 3.4 use rv (fast path)
       - run: bundle exec rake test
 ```
 
@@ -455,7 +454,7 @@ setup-ruby-flash is a true drop-in replacement for `ruby/setup-ruby`. Simply cha
     bundler-cache: true  # Works exactly the same
 - run: bundle exec rake test
 
-# Or explicitly use ore-install when testing the ore integration
+# Or explicitly opt into the experimental ore integration (see Experimental: ore)
 - uses: appraisal-rb/setup-ruby-flash@v1
   with:
     ruby-version: "3.4"
@@ -484,30 +483,36 @@ setup-ruby-flash is a true drop-in replacement for `ruby/setup-ruby`. Simply cha
 
 ### Key Differences
 
-| Feature              | setup-ruby       | setup-ruby-flash  |
-| -------------------- | ---------------- | ----------------- |
-| Ruby Install         | ~5 seconds       | < 2 seconds       |
-| Gem Install          | Bundler          | ore (~50% faster) |
-| `ruby-version: ruby` | ✅ latest stable | ✅ latest stable  |
-| `rubygems: latest`   | ✅               | ✅                |
-| `bundler: latest`    | ✅               | ✅                |
-| Windows              | ✅               | ❌                |
-| Ruby < 3.2           | ✅               | ❌                |
-| JRuby                | ✅               | ❌ (planned)      |
-| TruffleRuby          | ✅               | ❌ (planned)      |
-| Security Audit       | ❌               | ✅ (`ore audit`)  |
+| Feature              | setup-ruby       | setup-ruby-flash              |
+| -------------------- | ---------------- | ------------------------------ |
+| Ruby Install         | ~5 seconds       | < 2 seconds                    |
+| Gem Install          | Bundler          | `rv clean-install` (Bundler-compatible); ore optional and experimental |
+| `ruby-version: ruby` | ✅ latest stable | ✅ latest stable               |
+| `rubygems: latest`   | ✅               | ✅                             |
+| `bundler: latest`    | ✅               | ✅                             |
+| Windows              | ✅               | ❌                             |
+| Ruby < 3.2           | ✅               | ❌                             |
+| JRuby                | ✅               | ❌ (planned)                   |
+| TruffleRuby          | ✅               | ❌ (planned)                   |
+| Security Audit       | ❌               | 🧪 experimental (`ore audit`)  |
 
-## About rv and ore
+## About rv
 
-### rv
-
-[rv][rv] is an extremely fast Ruby version manager written in Rust. It downloads prebuilt Ruby binaries, eliminating the need for compilation. Created by [@indirect](https://github.com/indirect), long-time project lead for Bundler and RubyGems.
+[rv][rv] is the Ruby version manager this action is built around, and its speed is the headline feature of setup-ruby-flash: it downloads prebuilt Ruby binaries instead of compiling from source, which is what makes "install Ruby in under 2 seconds" possible. `rv clean-install` is also the default gem-installation path used by `bundler-cache: true` — it is Bundler-compatible, so `bundle exec` and the rest of your Bundler-based workflow work unchanged. Created by [@indirect](https://github.com/indirect), long-time project lead for Bundler and RubyGems.
 
 [rv]: https://github.com/spinel-coop/rv
 
-### ore
+## Experimental: ore
 
-[ore][ore] is a fast gem installer written in Go. It's Bundler-compatible but performs downloads significantly faster using Go's concurrency features. Use `bundle exec` to run gem commands after ore installs your gems. Created by [@seuros](https://github.com/seuros), a long time Rubyist, and prolific [writer](https://www.seuros.com/blog/rubygems-coup-when-parasites-take-the-host/).
+[ore][ore] is an optional, opt-in gem installer written in Go, available behind the `ore-setup` / `ore-install` inputs (both default to not installing gems this way — see [Inputs](#inputs)). It is **not** the default gem-installation path and is **not** required to use this action; `rv clean-install` is.
+
+ore support in setup-ruby-flash is experimental:
+
+- It is not exercised by the default `bundler-cache: true` path, so it gets less real-world coverage than `rv clean-install`.
+- We are not making performance claims about ore here — none have been independently validated in this project's own benchmarks. If you need a specific, verified number, measure it in your own CI.
+- Treat `ore-install`, `ore-setup`, `ore-version`, `ore-git-ref`, and `gfgo-git-ref` as an early-access integration: useful to try, not yet something to depend on for production CI without your own validation.
+
+Use `bundle exec` to run gem commands after ore installs your gems. ore is created by [@seuros](https://github.com/seuros), a long time Rubyist, and prolific [writer](https://www.seuros.com/blog/rubygems-coup-when-parasites-take-the-host/).
 
 [ore]: https://github.com/contriboss/ore-light
 
