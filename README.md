@@ -100,7 +100,9 @@ I've summarized my thoughts in [this blog post](https://dev.to/galtzo/hostile-ta
 For easy migration from ruby/setup-ruby, use `bundler-cache`. On modern Ruby
 versions this installs gems with `rv clean-install`, caches `vendor/bundle`,
 and retries dependency resolution and installation without changing Gemfile
-sources.
+sources. Failures that retrying cannot fix (for example a native extension that
+does not compile, or a dependency conflict) stop immediately instead of using up
+the remaining attempts.
 
 ```yaml
 - uses: appraisal-rb/setup-ruby-flash@v1
@@ -185,13 +187,13 @@ When `ruby-version` is set to `default` (the default), setup-ruby-flash reads fr
 | `skip-extensions`      | Skip building native extensions                                                                                                | `false`               |
 | `without-groups`       | Gem groups to exclude (comma-separated)                                                                                        | `''`                  |
 | `ruby-install-retries` | Number of retry attempts for Ruby installation (with exponential backoff)                                                      | `3`                   |
-| `gem-install-retries`  | Number of retry attempts for dependency resolution and gem installation                                                        | `4`                   |
+| `gem-install-retries`  | Number of retry attempts for dependency resolution and gem installation; deterministic failures are not retried                | `4`                   |
 | `pre-bundle-gems`      | Newline-separated `gem install` argument lines to run before installing the main Gemfile bundle                                | `''`                  |
 | `pre-appraisal-root-gemfile-gems` | Newline-separated `gem install` argument lines to run before installing the appraisal root Gemfile bundle            | `''`                  |
 | `appraisal-root-gemfile` | Root Gemfile used for appraisal setup when `appraisal-name` is set                                                           | `Appraisal.root.gemfile` |
 | `appraisal-name`       | Appraisal name passed to `bundle exec appraisal <name> install`; empty disables appraisal setup                                | `''`                  |
 | `appraisal-cache`      | Cache gems installed for the appraisal root Gemfile and selected appraisal                                                     | `true`                |
-| `appraisal-install-retries` | Number of retry attempts for appraisal root bundle install and appraisal install                                          | `2`                   |
+| `appraisal-install-retries` | Number of retry attempts for appraisal root bundle install and appraisal install; deterministic failures are not retried  | `2`                   |
 | `no-document`          | Skip generating documentation (ri/rdoc) for installed gems. Creates `~/.gemrc` with `gem: --no-document` if file doesn't exist | `true`                |
 | `use-setup-ruby`       | Force the ruby/setup-ruby compatibility path for specific versions. Accepts single value or array: `'3.4'` or `['3.4', '4.0']`           | `''`                  |
 | `use-setup-ruby-flash` | Force use of setup-ruby-flash for specific versions. Accepts single value or array: `'head'` or `['head', 'jruby']`           | `''`                  |
@@ -305,6 +307,20 @@ If you experience intermittent failures due to GitHub API rate limiting, you can
     ruby-version: "3.4"
     ruby-install-retries: "5"
 ```
+
+Gem installation retries (`gem-install-retries`, `appraisal-install-retries`)
+only repeat failures that can succeed on another attempt, such as network
+timeouts or a just-published gem that is not yet in the index. They stop at
+the first attempt when Bundler or RubyGems reports a failure that will repeat:
+
+| Failure                         | Example output                                                     |
+|---------------------------------|--------------------------------------------------------------------|
+| Native extension build failure  | `Gem::Ext::BuildError: ERROR: Failed to build gem native extension` |
+| Dependency resolution conflict  | `Could not find compatible versions`, `version solving has failed`  |
+| Incompatible Ruby version       | `requires ruby version >= 3.2`                                     |
+| Gemfile or gemspec error        | `There was an error parsing Gemfile`                               |
+| Lockfile or platform mismatch   | `Your bundle only supports platforms`, `frozen mode is set`        |
+| Git authentication failure      | `Permission denied (publickey)`                                    |
 
 ### Enable Documentation Generation
 
