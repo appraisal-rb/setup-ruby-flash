@@ -4,6 +4,11 @@
 
 ### Added
 
+- **Deterministic install failures are not retried**: `gem-install-retries` and `appraisal-install-retries` stop at the first attempt when the failure will repeat
+  - Recognized failures: native extension build errors, dependency resolution conflicts, incompatible Ruby versions, Gemfile/gemspec load errors, lockfile or platform mismatches, and git authentication failures
+  - Transient failures (network errors, a gem not yet in the index) still retry with exponential backoff
+  - All retrying install steps share one helper, `scripts/retry.sh`, which keeps each attempt's output for classification and returns the command's exit status
+
 - **Appraisal Setup Inputs**: setup-ruby-flash can now install trusted pre-bundle gems, prepare an appraisal root Gemfile, cache appraisal gems, and retry `appraisal2` installs
   - `pre-bundle-gems` and `pre-appraisal-root-gemfile-gems` accept newline-separated `gem install` argument lines
   - `appraisal-name` runs `bundle exec appraisal <name> install` when provided
