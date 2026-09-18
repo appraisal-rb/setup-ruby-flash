@@ -1005,24 +1005,79 @@ runs:
           # Prepend Ruby bin dir to GITHUB_PATH so Ruby binaries take precedence
           echo "$(cygpath -w "$RUBY_BIN_DIR")" >> "$GITHUB_PATH"
 
+          # Ensure MSYS2 environments inherit the PATH from Windows
+          echo "MSYS2_PATH_TYPE=inherit" >> "$GITHUB_ENV"
+          export MSYS2_PATH_TYPE=inherit
+
           # Ensure MSYS2 and make can resolve Windows drive paths formatted as /C/... or /D/...
-          # by adding /etc/fstab mount entries and creating directory junctions.
-          for fstab in "$(cygpath -w /etc/fstab 2>/dev/null || true)" "C:/msys64/etc/fstab"; do
-            if [ -f "$fstab" ]; then
-              grep -q "^c: /C" "$fstab" 2>/dev/null || echo "c: /C" >> "$fstab" || true
-              grep -q "^d: /D" "$fstab" 2>/dev/null || echo "d: /D" >> "$fstab" || true
+          # by adding /etc/fstab mount entries, directory junctions, and MSYS2 symlinks.
+          MSYS_ROOTS=()
+          [ -d "C:/msys64" ] && MSYS_ROOTS+=("C:/msys64")
+          if [ -n "$RI_DEVKIT" ] && [ -d "$RI_DEVKIT" ]; then
+            DEVKIT_POSIX="$(cygpath -m "$RI_DEVKIT" 2>/dev/null || echo "$RI_DEVKIT" | tr '\\' '/')"
+            [ -d "$DEVKIT_POSIX" ] && MSYS_ROOTS+=("$DEVKIT_POSIX")
+          fi
+          GIT_ROOT_POSIX="$(cygpath -m / 2>/dev/null || true)"
+          [ -n "$GIT_ROOT_POSIX" ] && [ -d "$GIT_ROOT_POSIX" ] && MSYS_ROOTS+=("$GIT_ROOT_POSIX")
+          MAKE_BIN=$(command -v make 2>/dev/null || which make 2>/dev/null || true)
+          if [ -n "$MAKE_BIN" ]; then
+            MAKE_ROOT="$(dirname "$(dirname "$(cygpath -m "$MAKE_BIN" 2>/dev/null || echo "$MAKE_BIN" | tr '\\' '/')")")"
+            [ -d "$MAKE_ROOT" ] && MSYS_ROOTS+=("$MAKE_ROOT")
+          fi
+
+          ACTIVE_DRIVES=()
+          for d in C D E F G H I J K L M N O P Q R S T U V W X Y Z; do
+            if [ -d "${d}:/" ]; then
+              ACTIVE_DRIVES+=("$d")
             fi
           done
 
-          GIT_ROOT="$(cygpath -w / 2>/dev/null || true)"
-          if [ -n "$GIT_ROOT" ] && [ -d "$GIT_ROOT" ]; then
-            cmd.exe /c "if not exist \"${GIT_ROOT}\\C\" mklink /J \"${GIT_ROOT}\\C\" C:\\" >/dev/null 2>&1 || true
-            cmd.exe /c "if not exist \"${GIT_ROOT}\\D\" mklink /J \"${GIT_ROOT}\\D\" D:\\" >/dev/null 2>&1 || true
-          fi
-          cmd.exe /c "if not exist C:\\C mklink /J C:\\C C:\\" >/dev/null 2>&1 || true
-          cmd.exe /c "if not exist C:\\D mklink /J C:\\D D:\\" >/dev/null 2>&1 || true
-          cmd.exe /c "if not exist D:\\C mklink /J D:\\C C:\\" >/dev/null 2>&1 || true
-          cmd.exe /c "if not exist D:\\D mklink /J D:\\D D:\\" >/dev/null 2>&1 || true
+          UNIQUE_MSYS_ROOTS=()
+          for r in "${MSYS_ROOTS[@]}"; do
+            skip=""
+            for u in "${UNIQUE_MSYS_ROOTS[@]}"; do
+              [ "$r" = "$u" ] && skip=1 && break
+            done
+            [ -z "$skip" ] && UNIQUE_MSYS_ROOTS+=("$r")
+          done
+
+          for root in "${UNIQUE_MSYS_ROOTS[@]}"; do
+            mkdir -p "$root/etc"
+            FSTAB="$root/etc/fstab"
+            touch "$FSTAB"
+            for d in "${ACTIVE_DRIVES[@]}"; do
+              d_lower=$(echo "$d" | tr '[:upper:]' '[:lower:]')
+              grep -E -q "^${d}:/[[:space:]]+/${d}([[:space:]]|$)" "$FSTAB" 2>/dev/null || echo "${d}:/ /${d} ntfs binary,noacl,auto 1 1" >> "$FSTAB"
+              grep -E -q "^${d}:/[[:space:]]+/${d_lower}([[:space:]]|$)" "$FSTAB" 2>/dev/null || echo "${d}:/ /${d_lower} ntfs binary,noacl,auto 1 1" >> "$FSTAB"
+            done
+
+            ROOT_WIN="$(cygpath -w "$root" 2>/dev/null || echo "$root" | tr '/' '\\')"
+            for d in "${ACTIVE_DRIVES[@]}"; do
+              cmd.exe /c "if not exist \"${ROOT_WIN}\\${d}\" mklink /J \"${ROOT_WIN}\\${d}\" ${d}:\\" >/dev/null 2>&1 || true
+              d_lower=$(echo "$d" | tr '[:upper:]' '[:lower:]')
+              cmd.exe /c "if not exist \"${ROOT_WIN}\\${d_lower}\" mklink /J \"${ROOT_WIN}\\${d_lower}\" ${d}:\\" >/dev/null 2>&1 || true
+            done
+
+            if [ -f "$root/usr/bin/bash.exe" ]; then
+              for d in "${ACTIVE_DRIVES[@]}"; do
+                d_lower=$(echo "$d" | tr '[:upper:]' '[:lower:]')
+                "$root/usr/bin/bash.exe" -c "ln -s /${d_lower} /${d} 2>/dev/null || true" >/dev/null 2>&1 || true
+              done
+            fi
+          done
+
+          for d1 in "${ACTIVE_DRIVES[@]}"; do
+            for d2 in "${ACTIVE_DRIVES[@]}"; do
+              d2_lower=$(echo "$d2" | tr '[:upper:]' '[:lower:]')
+              cmd.exe /c "if not exist ${d1}:\\${d2} mklink /J ${d1}:\\${d2} ${d2}:\\" >/dev/null 2>&1 || true
+              cmd.exe /c "if not exist ${d1}:\\${d2_lower} mklink /J ${d1}:\\${d2_lower} ${d2}:\\" >/dev/null 2>&1 || true
+            done
+          done
+
+          for d in "${ACTIVE_DRIVES[@]}"; do
+            d_lower=$(echo "$d" | tr '[:upper:]' '[:lower:]')
+            ln -s "/${d_lower}" "/${d}" 2>/dev/null || true
+          done
         else
           echo "GEM_HOME=$ACTUAL_GEM_HOME" >> "$GITHUB_ENV"
           echo "GEM_PATH=$ACTUAL_GEM_PATH" >> "$GITHUB_ENV"
