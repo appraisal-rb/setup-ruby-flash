@@ -683,6 +683,19 @@ runs:
           fi
         fi
 
+        # On Windows, fix clean_install.rs to use forward slashes in make sitearchdir/sitelibdir arguments
+        # so make's /bin/sh recipe execution does not unescape backslashes.
+        if [ "$RUNNER_OS" = "Windows" ] && [ -f crates/rv/src/commands/clean_install.rs ]; then
+          python3 -c "
+import pathlib
+p = pathlib.Path('crates/rv/src/commands/clean_install.rs')
+if p.exists():
+    content = p.read_text('utf-8')
+    content = content.replace('tmp_dir.path()', 'tmp_dir.path().as_str().replace(\x27\\\\x27, \"/\")')
+    p.write_text(content, 'utf-8')
+" || true
+        fi
+
         # Build rv using cargo
         cargo build --release -p rv
 
@@ -1477,6 +1490,40 @@ runs:
           GEM_MANAGER="bundle install (rv clean-install fallback)"
           bundle config set --local path vendor/bundle
           setup_ruby_flash_retry "bundle install for $GEMFILE" "$MAX_RETRIES" bundle install --gemfile "$GEMFILE" --jobs 4
+        fi
+
+        # On Windows, fix up native extensions if rv clean-install was affected by
+        # the make /bin/sh backslash unescaping issue.
+        if [ "$RUNNER_OS" = "Windows" ] && [ -d "$BUNDLE_PATH_VALUE" ]; then
+          for gem_dir in "$BUNDLE_PATH_VALUE"/ruby/*/gems/*; do
+            [ -d "$gem_dir" ] || continue
+            gem_name_ver="$(basename "$gem_dir")"
+            lib_dir="$gem_dir/lib"
+            ext_src="$gem_dir/ext"
+            [ -d "$ext_src" ] || continue
+
+            while IFS= read -r so_file; do
+              [ -f "$so_file" ] || continue
+              so_name="$(basename "$so_file")"
+              mkdir -p "$lib_dir"
+              if [ ! -f "$lib_dir/$so_name" ]; then
+                echo "Recovered native extension $so_name -> $lib_dir/$so_name"
+                cp -f "$so_file" "$lib_dir/$so_name"
+              fi
+              for ext_api_dir in "$BUNDLE_PATH_VALUE"/ruby/*/extensions/*/*; do
+                [ -d "$ext_api_dir" ] || continue
+                target_ext_dir="$ext_api_dir/$gem_name_ver"
+                mkdir -p "$target_ext_dir"
+                if [ ! -f "$target_ext_dir/$so_name" ]; then
+                  echo "Recovered native extension $so_name -> $target_ext_dir/$so_name"
+                  cp -f "$so_file" "$target_ext_dir/$so_name"
+                fi
+              done
+            done < <(find "$ext_src" -type f \( -name "*.so" -o -name "*.dll" \) 2>/dev/null)
+
+            # Clean up any mangled directory created by make install (e.g., ext/**/D:a* or *:*)
+            find "$ext_src" -mindepth 1 -maxdepth 3 -type d -name "*:*" -exec rm -rf {} + 2>/dev/null || true
+          done
         fi
 
         END_TIME=$(date +%s)

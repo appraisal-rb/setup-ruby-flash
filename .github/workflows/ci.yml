@@ -156,12 +156,6 @@ jobs:
           bundle check --gemfile "$BUNDLE_GEMFILE"
           echo "==> Smoke a Rake:"
           bundle exec rake -T
-          echo "==> Diagnostic: find all .so files:"
-          find . -name "*.so" || true
-          echo "==> Diagnostic: build_ext.log:"
-          find vendor/bundle -name "build_ext.log" -exec cat {} + || true
-          echo "==> Diagnostic: vendor/bundle structure:"
-          find vendor/bundle -maxdepth 5 || true
           echo "==> Test native extension:"
           bundle exec ruby -rbigdecimal -e 'puts BigDecimal("1.23")'
 
