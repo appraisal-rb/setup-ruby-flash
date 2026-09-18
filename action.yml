@@ -1185,34 +1185,14 @@ runs:
           exit 1
         fi
 
-        RETRY_COUNT=0
-        BACKOFF=5
         START_TIME=$(date +%s)
 
-        run_with_retries() {
-          local label="$1"
-          shift
-          RETRY_COUNT=0
-          BACKOFF=5
-          while [ "$RETRY_COUNT" -lt "$MAX_RETRIES" ]; do
-            RETRY_COUNT=$((RETRY_COUNT + 1))
-            echo "$label attempt $RETRY_COUNT of $MAX_RETRIES..."
-            if "$@"; then
-              return 0
-            fi
-            if [ "$RETRY_COUNT" -lt "$MAX_RETRIES" ]; then
-              echo "::warning::$label failed (attempt $RETRY_COUNT/$MAX_RETRIES). Retrying in ${BACKOFF}s without changing Gemfile sources..."
-              sleep "$BACKOFF"
-              BACKOFF=$((BACKOFF * 2))
-            fi
-          done
-          echo "::error::$label failed after $MAX_RETRIES attempts"
-          return 1
-        }
+        # Retries transient failures; stops early on deterministic ones.
+        source "$GITHUB_ACTION_PATH/scripts/retry.sh"
 
         if [ ! -f "$LOCKFILE" ]; then
           echo "Lockfile $LOCKFILE not found; generating it with Bundler before rv clean-install."
-          run_with_retries "bundle lock" bundle lock --gemfile "$GEMFILE"
+          setup_ruby_flash_retry "bundle lock" "$MAX_RETRIES" bundle lock --gemfile "$GEMFILE"
         fi
 
         BUNDLE_PATH_VALUE="$PWD/vendor/bundle"
@@ -1233,7 +1213,7 @@ runs:
         if [ "${{ steps.cache-bundler-gems.outputs.cache-hit }}" != "true" ]; then
           RV_CI_ARGS+=(--force)
         fi
-        run_with_retries "rv clean-install" ~/.local/bin/rv ci "${RV_CI_ARGS[@]}"
+        setup_ruby_flash_retry "rv clean-install" "$MAX_RETRIES" ~/.local/bin/rv ci "${RV_CI_ARGS[@]}"
 
         END_TIME=$(date +%s)
         ELAPSED=$((END_TIME - START_TIME))
@@ -1289,23 +1269,11 @@ runs:
           exit 1
         fi
 
-        RETRY_COUNT=0
-        BACKOFF=5
-        while [ "$RETRY_COUNT" -lt "$MAX_RETRIES" ]; do
-          RETRY_COUNT=$((RETRY_COUNT + 1))
-          echo "bundle install attempt $RETRY_COUNT of $MAX_RETRIES for $GEMFILE..."
-          bundle config set --local path vendor/bundle
-          if bundle install --gemfile "$GEMFILE" --jobs 4; then
-            exit 0
-          fi
-          if [ "$RETRY_COUNT" -lt "$MAX_RETRIES" ]; then
-            echo "::warning::bundle install failed (attempt $RETRY_COUNT/$MAX_RETRIES). Retrying in ${BACKOFF}s without changing Gemfile sources..."
-            sleep "$BACKOFF"
-            BACKOFF=$((BACKOFF * 2))
-          fi
-        done
-        echo "::error::bundle install failed after $MAX_RETRIES attempts"
-        exit 1
+        # Retries transient failures; stops early on deterministic ones.
+        source "$GITHUB_ACTION_PATH/scripts/retry.sh"
+
+        bundle config set --local path vendor/bundle
+        setup_ruby_flash_retry "bundle install for $GEMFILE" "$MAX_RETRIES" bundle install --gemfile "$GEMFILE" --jobs 4
 
     - name: Generate appraisal gem cache key
       if: steps.setup-plan.outputs.cache-appraisal == 'true'
@@ -1387,31 +1355,13 @@ runs:
           exit 1
         fi
 
-        run_with_retries() {
-          local label="$1"
-          shift
-          local retry_count=0
-          local backoff=5
-          while [ "$retry_count" -lt "$MAX_RETRIES" ]; do
-            retry_count=$((retry_count + 1))
-            echo "$label attempt $retry_count of $MAX_RETRIES..."
-            if "$@"; then
-              return 0
-            fi
-            if [ "$retry_count" -lt "$MAX_RETRIES" ]; then
-              echo "::warning::$label failed (attempt $retry_count/$MAX_RETRIES). Retrying in ${backoff}s without changing Gemfile sources..."
-              sleep "$backoff"
-              backoff=$((backoff * 2))
-            fi
-          done
-          echo "::error::$label failed after $MAX_RETRIES attempts"
-          return 1
-        }
+        # Retries transient failures; stops early on deterministic ones.
+        source "$GITHUB_ACTION_PATH/scripts/retry.sh"
 
         export BUNDLE_PATH="$PWD/vendor/appraisal-bundle"
         echo "BUNDLE_PATH=$BUNDLE_PATH" >> "$GITHUB_ENV"
-        run_with_retries "appraisal root bundle install" env BUNDLE_GEMFILE="$ROOT_GEMFILE" bundle install --jobs 4
-        run_with_retries "appraisal install" env BUNDLE_GEMFILE="$ROOT_GEMFILE" bundle exec appraisal "$APPRAISAL_NAME" install
+        setup_ruby_flash_retry "appraisal root bundle install" "$MAX_RETRIES" env BUNDLE_GEMFILE="$ROOT_GEMFILE" bundle install --jobs 4
+        setup_ruby_flash_retry "appraisal install" "$MAX_RETRIES" env BUNDLE_GEMFILE="$ROOT_GEMFILE" bundle exec appraisal "$APPRAISAL_NAME" install
 
     - name: Generate summary (Ruby only)
       if: steps.check-support.outputs.use-fallback != 'true' && steps.should-install-ore.outputs.install-ore != 'true' && inputs.bundler-cache != 'true'

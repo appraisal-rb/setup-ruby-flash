@@ -9,6 +9,7 @@ RSpec.describe 'action.yml' do
   let(:step_names) { steps.map { |step| step['name'] } }
   let(:ruby_setup_cache_expression) { "${{ steps.setup-plan.outputs.ruby-setup-bundler-cache == 'true' }}" }
   let(:manual_compatibility_bundle_expression) { "steps.setup-plan.outputs.manual-compatibility-bundle == 'true'" }
+  let(:retry_helper_source) { 'source "$GITHUB_ACTION_PATH/scripts/retry.sh"' }
 
   it 'defines appraisal and trusted gem preinstall inputs' do
     inputs = action.fetch('inputs')
@@ -29,7 +30,8 @@ RSpec.describe 'action.yml' do
     install_step = steps.fetch(step_names.index('Install gems with rv'))
 
     expect(install_step.fetch('if')).to eq("steps.setup-plan.outputs.fast-bundler-install == 'true'")
-    expect(install_step.fetch('run')).to include('~/.local/bin/rv ci --gemfile')
+    expect(install_step.fetch('run')).to include('RV_CI_ARGS=(--gemfile "$GEMFILE")')
+    expect(install_step.fetch('run')).to include('~/.local/bin/rv ci "${RV_CI_ARGS[@]}"')
   end
 
   it 'retries dependency resolution and rv gem installation without changing sources' do
@@ -37,8 +39,10 @@ RSpec.describe 'action.yml' do
     script = install_step.fetch('run')
 
     expect(script).to include('gem-install-retries')
-    expect(script).to include('bundle lock')
-    expect(script).to include('Retrying in ${BACKOFF}s without changing Gemfile sources')
+    expect(script).to include(retry_helper_source)
+    expect(script).to include('setup_ruby_flash_retry "bundle lock" "$MAX_RETRIES" bundle lock --gemfile "$GEMFILE"')
+    expect(script).to include('setup_ruby_flash_retry "rv clean-install" "$MAX_RETRIES" ~/.local/bin/rv ci')
+    expect(script).not_to include('run_with_retries')
     expect(script).not_to include('rubygems.org')
     expect(script).not_to include('mirror.https://gem.coop')
   end
@@ -108,8 +112,10 @@ RSpec.describe 'action.yml' do
     script = compatibility_bundle_step.fetch('run')
 
     expect(compatibility_bundle_step.fetch('if')).to eq(manual_compatibility_bundle_expression)
+    expect(script).to include('gem-install-retries must be a positive integer')
+    expect(script).to include(retry_helper_source)
+    expect(script).to include('setup_ruby_flash_retry "bundle install for $GEMFILE" "$MAX_RETRIES" bundle install')
     expect(script).to include('bundle install --gemfile "$GEMFILE" --jobs 4')
-    expect(script).to include('without changing Gemfile sources')
   end
 
   it 'allows appraisal workflows to skip main Gemfile installation' do
@@ -196,9 +202,12 @@ RSpec.describe 'action.yml' do
     expect(script).to include('SETUP_RUBY_FLASH_PRE_APPRAISAL_ROOT_GEMS')
     expect(script).to include('appraisal-install-retries must be a positive integer')
     expect(script).to include('export BUNDLE_PATH="$PWD/vendor/appraisal-bundle"')
+    expect(script).to include(retry_helper_source)
+    expect(script).to include('setup_ruby_flash_retry "appraisal root bundle install" "$MAX_RETRIES" env')
     expect(script).to include('env BUNDLE_GEMFILE="$ROOT_GEMFILE" bundle install --jobs 4')
+    expect(script).to include('setup_ruby_flash_retry "appraisal install" "$MAX_RETRIES" env')
     expect(script).to include('env BUNDLE_GEMFILE="$ROOT_GEMFILE" bundle exec appraisal "$APPRAISAL_NAME" install')
-    expect(script).to include('without changing Gemfile sources')
+    expect(script).not_to include('run_with_retries')
     expect(script).not_to include('eval')
   end
 end
