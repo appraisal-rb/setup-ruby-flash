@@ -1012,8 +1012,9 @@ runs:
           # Ensure MSYS2 and make can resolve Windows drive paths formatted as /C/... or /D/...
           # by adding /etc/fstab mount entries, directory junctions, and MSYS2 symlinks.
           MSYS_ROOTS=()
+          [ -d "/c/msys64" ] && MSYS_ROOTS+=("C:/msys64")
           [ -d "C:/msys64" ] && MSYS_ROOTS+=("C:/msys64")
-          if [ -n "$RI_DEVKIT" ] && [ -d "$RI_DEVKIT" ]; then
+          if [ -n "$RI_DEVKIT" ]; then
             DEVKIT_POSIX="$(cygpath -m "$RI_DEVKIT" 2>/dev/null || echo "$RI_DEVKIT" | tr '\\' '/')"
             [ -d "$DEVKIT_POSIX" ] && MSYS_ROOTS+=("$DEVKIT_POSIX")
           fi
@@ -1025,9 +1026,10 @@ runs:
             [ -d "$MAKE_ROOT" ] && MSYS_ROOTS+=("$MAKE_ROOT")
           fi
 
-          ACTIVE_DRIVES=()
-          for d in C D E F G H I J K L M N O P Q R S T U V W X Y Z; do
-            if [ -d "${d}:/" ]; then
+          ACTIVE_DRIVES=(C D)
+          for d in E F G H; do
+            d_lower=$(echo "$d" | tr '[:upper:]' '[:lower:]')
+            if [ -d "/$d_lower" ] || [ -d "${d}:/" ]; then
               ACTIVE_DRIVES+=("$d")
             fi
           done
@@ -1041,43 +1043,42 @@ runs:
             [ -z "$skip" ] && UNIQUE_MSYS_ROOTS+=("$r")
           done
 
+          echo "==> Configuring MSYS2 drive mappings for roots: ${UNIQUE_MSYS_ROOTS[*]} and drives: ${ACTIVE_DRIVES[*]}"
           for root in "${UNIQUE_MSYS_ROOTS[@]}"; do
+            ROOT_WIN="$(cygpath -w "$root" 2>/dev/null || echo "$root" | tr '/' '\\')"
             mkdir -p "$root/etc"
             FSTAB="$root/etc/fstab"
             touch "$FSTAB"
             for d in "${ACTIVE_DRIVES[@]}"; do
-              d_lower=$(echo "$d" | tr '[:upper:]' '[:lower:]')
+              if [ ! -d "${root}/${d}" ]; then
+                cmd.exe /c "mklink /J \"${ROOT_WIN}\\${d}\" ${d}:\\" 2>&1 || true
+              fi
+              mkdir -p "${root}/${d}"
               grep -E -q "^${d}:/[[:space:]]+/${d}([[:space:]]|$)" "$FSTAB" 2>/dev/null || echo "${d}:/ /${d} ntfs binary,noacl,auto 1 1" >> "$FSTAB"
-              grep -E -q "^${d}:/[[:space:]]+/${d_lower}([[:space:]]|$)" "$FSTAB" 2>/dev/null || echo "${d}:/ /${d_lower} ntfs binary,noacl,auto 1 1" >> "$FSTAB"
             done
-
-            ROOT_WIN="$(cygpath -w "$root" 2>/dev/null || echo "$root" | tr '/' '\\')"
-            for d in "${ACTIVE_DRIVES[@]}"; do
-              cmd.exe /c "if not exist \"${ROOT_WIN}\\${d}\" mklink /J \"${ROOT_WIN}\\${d}\" ${d}:\\" >/dev/null 2>&1 || true
-              d_lower=$(echo "$d" | tr '[:upper:]' '[:lower:]')
-              cmd.exe /c "if not exist \"${ROOT_WIN}\\${d_lower}\" mklink /J \"${ROOT_WIN}\\${d_lower}\" ${d}:\\" >/dev/null 2>&1 || true
-            done
-
-            if [ -f "$root/usr/bin/bash.exe" ]; then
-              for d in "${ACTIVE_DRIVES[@]}"; do
-                d_lower=$(echo "$d" | tr '[:upper:]' '[:lower:]')
-                "$root/usr/bin/bash.exe" -c "ln -s /${d_lower} /${d} 2>/dev/null || true" >/dev/null 2>&1 || true
-              done
-            fi
+            echo "Fstab ($FSTAB):"
+            cat "$FSTAB"
           done
 
           for d1 in "${ACTIVE_DRIVES[@]}"; do
             for d2 in "${ACTIVE_DRIVES[@]}"; do
-              d2_lower=$(echo "$d2" | tr '[:upper:]' '[:lower:]')
-              cmd.exe /c "if not exist ${d1}:\\${d2} mklink /J ${d1}:\\${d2} ${d2}:\\" >/dev/null 2>&1 || true
-              cmd.exe /c "if not exist ${d1}:\\${d2_lower} mklink /J ${d1}:\\${d2_lower} ${d2}:\\" >/dev/null 2>&1 || true
+              cmd.exe /c "if not exist ${d1}:\\${d2} mklink /J ${d1}:\\${d2} ${d2}:\\" 2>&1 || true
             done
           done
 
-          for d in "${ACTIVE_DRIVES[@]}"; do
-            d_lower=$(echo "$d" | tr '[:upper:]' '[:lower:]')
-            ln -s "/${d_lower}" "/${d}" 2>/dev/null || true
-          done
+          echo "==> Verifying /C and /D paths in Git Bash:"
+          ls -ld /C 2>&1 || echo "ls /C failed"
+          ls -ld /D 2>&1 || echo "ls /D failed"
+          if [ -d "$RUBY_PREFIX" ]; then
+            RUBY_PREFIX_UPPER="$(echo "$RUBY_PREFIX" | sed -E 's/^\/([a-z])\//\/\U\1\//')"
+            echo "Checking Ruby header in uppercase path: $RUBY_PREFIX_UPPER/include/ruby-${MAJOR_MINOR}.0/ruby.h"
+            if [ -f "$RUBY_PREFIX_UPPER/include/ruby-${MAJOR_MINOR}.0/ruby.h" ]; then
+              echo "SUCCESS: Ruby header is accessible via uppercase drive path!"
+            else
+              echo "WARNING: Ruby header not found at $RUBY_PREFIX_UPPER/include/ruby-${MAJOR_MINOR}.0/ruby.h"
+              ls -la "$RUBY_PREFIX/include" 2>&1 || true
+            fi
+          fi
         else
           echo "GEM_HOME=$ACTUAL_GEM_HOME" >> "$GITHUB_ENV"
           echo "GEM_PATH=$ACTUAL_GEM_PATH" >> "$GITHUB_ENV"
