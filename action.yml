@@ -1045,14 +1045,10 @@ runs:
 
           echo "==> Configuring MSYS2 drive mappings for roots: ${UNIQUE_MSYS_ROOTS[*]} and drives: ${ACTIVE_DRIVES[*]}"
           for root in "${UNIQUE_MSYS_ROOTS[@]}"; do
-            ROOT_WIN="$(cygpath -w "$root" 2>/dev/null || echo "$root" | tr '/' '\\')"
             mkdir -p "$root/etc"
             FSTAB="$root/etc/fstab"
             touch "$FSTAB"
             for d in "${ACTIVE_DRIVES[@]}"; do
-              if [ ! -d "${root}/${d}" ]; then
-                cmd.exe /c "mklink /J \"${ROOT_WIN}\\${d}\" ${d}:\\" 2>&1 || true
-              fi
               mkdir -p "${root}/${d}"
               grep -E -q "^${d}:/[[:space:]]+/${d}([[:space:]]|$)" "$FSTAB" 2>/dev/null || echo "${d}:/ /${d} ntfs binary,noacl,auto 1 1" >> "$FSTAB"
             done
@@ -1060,9 +1056,25 @@ runs:
             cat "$FSTAB"
           done
 
+          # Create directory junctions using PowerShell and cmd mklink /J
+          powershell -NoProfile -Command "
+            foreach (\$d in @('C', 'D')) {
+              \$target = \"\${d}:\\\"
+              foreach (\$root in @('C:\\msys64', 'C:\\Program Files\\Git', 'C:\\mingw64', 'C:', 'D:')) {
+                if (Test-Path \$root) {
+                  \$junction = Join-Path \$root \$d
+                  if (-not (Test-Path \$junction)) {
+                    New-Item -ItemType Junction -Path \$junction -Value \$target -Force -ErrorAction SilentlyContinue | Out-Null
+                  }
+                }
+              }
+            }
+          " 2>&1 || true
+
+          # Fallback mklink /J for cmd compatibility
           for d1 in "${ACTIVE_DRIVES[@]}"; do
             for d2 in "${ACTIVE_DRIVES[@]}"; do
-              cmd.exe /c "if not exist ${d1}:\\${d2} mklink /J ${d1}:\\${d2} ${d2}:\\" 2>&1 || true
+              cmd.exe /c "if not exist ${d1}:\\${d2} mklink /J ${d1}:\\${d2} ${d2}:\\. " 2>&1 || true
             done
           done
 
@@ -1079,6 +1091,17 @@ runs:
               ls -la "$RUBY_PREFIX/include" 2>&1 || true
             fi
           fi
+
+          echo "==> Verifying Win32 junction resolution via PowerShell:"
+          powershell -NoProfile -Command "
+            Get-Item 'C:\C', 'C:\D', 'D:\C', 'D:\D', 'C:\msys64\C', 'C:\msys64\D' -ErrorAction SilentlyContinue | Select-Object FullName, LinkType, Target | Format-Table -AutoSize
+            \$testHeader = 'D:\C\Users\runneradmin\AppData\Roaming\rv\rubies\ruby-' + '${FULL_RUBY_VERSION}' + '\include\ruby-' + '${MAJOR_MINOR}' + '.0\ruby.h'
+            if (Test-Path \$testHeader) {
+              Write-Host 'SUCCESS: Header is accessible via Win32 D:\C path:' \$testHeader
+            } else {
+              Write-Host 'WARNING: Header not found via Win32 D:\C path:' \$testHeader
+            }
+          " 2>&1 || true
         else
           echo "GEM_HOME=$ACTUAL_GEM_HOME" >> "$GITHUB_ENV"
           echo "GEM_PATH=$ACTUAL_GEM_PATH" >> "$GITHUB_ENV"
