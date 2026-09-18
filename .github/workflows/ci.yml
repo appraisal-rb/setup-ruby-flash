@@ -31,7 +31,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest]
+        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest, windows-latest]
         ruby: ['3.2', '3.3', '3.4', '4.0']
     steps:
       - uses: actions/checkout@v5
@@ -120,7 +120,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
       - uses: actions/checkout@v5
 
@@ -490,6 +490,44 @@ jobs:
           use-setup-ruby: ${{ matrix.ruby == '4.0' && matrix.ruby || '' }}
           # Force 'head' to attempt setup-ruby-flash (will fail until rv supports it)
           # use-setup-ruby-flash: ${{ matrix.ruby == 'head' && matrix.ruby || '' }}
+
+      - name: Verify Ruby installation
+        run: |
+          echo "==> Ruby version:"
+          ruby --version
+          echo "==> Gem version:"
+          gem --version
+          echo "==> Bundler version:"
+          bundle --version
+          echo "==> Smoke a Rake"
+          bundle exec rake -T
+
+  # Test fallback to ruby/setup-ruby on Windows
+  test-fallback-windows:
+    name: Test Fallback (windows-latest, Ruby ${{ matrix.ruby }})
+    runs-on: windows-latest
+    env:
+      BUNDLE_GEMFILE: TestGemfile
+    strategy:
+      fail-fast: false
+      matrix:
+        ruby: ['3.1', '4.0']
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Create test Gemfile
+        run: |
+          cat > ${{ env.BUNDLE_GEMFILE }} << 'EOF'
+          source 'https://gem.coop'
+          gem 'rake'
+          EOF
+
+      - name: Setup Ruby (compatibility path on Windows)
+        uses: ./
+        with:
+          ruby-version: ${{ matrix.ruby }}
+          bundler-cache: true
+          use-setup-ruby: ${{ matrix.ruby == '4.0' && matrix.ruby || '' }}
 
       - name: Verify Ruby installation
         run: |

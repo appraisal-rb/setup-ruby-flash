@@ -9,7 +9,7 @@ RSpec.describe 'action.yml' do
   let(:step_names) { steps.map { |step| step['name'] } }
   let(:ruby_setup_cache_expression) { "${{ steps.setup-plan.outputs.ruby-setup-bundler-cache == 'true' }}" }
   let(:manual_compatibility_bundle_expression) { "steps.setup-plan.outputs.manual-compatibility-bundle == 'true'" }
-  let(:retry_helper_source) { 'source "$GITHUB_ACTION_PATH/scripts/retry.sh"' }
+  let(:retry_helper_source) { 'source "${GITHUB_ACTION_PATH//\\\\//}/scripts/retry.sh"' }
 
   it 'defines appraisal and trusted gem preinstall inputs' do
     inputs = action.fetch('inputs')
@@ -31,7 +31,7 @@ RSpec.describe 'action.yml' do
 
     expect(install_step.fetch('if')).to eq("steps.setup-plan.outputs.fast-bundler-install == 'true'")
     expect(install_step.fetch('run')).to include('RV_CI_ARGS=(--gemfile "$GEMFILE")')
-    expect(install_step.fetch('run')).to include('~/.local/bin/rv ci "${RV_CI_ARGS[@]}"')
+    expect(install_step.fetch('run')).to include('"$RV_BIN" ci "${RV_CI_ARGS[@]}"')
   end
 
   it 'retries dependency resolution and rv gem installation without changing sources' do
@@ -41,7 +41,7 @@ RSpec.describe 'action.yml' do
     expect(script).to include('gem-install-retries')
     expect(script).to include(retry_helper_source)
     expect(script).to include('setup_ruby_flash_retry "bundle lock" "$MAX_RETRIES" bundle lock --gemfile "$GEMFILE"')
-    expect(script).to include('setup_ruby_flash_retry "rv clean-install" "$MAX_RETRIES" ~/.local/bin/rv ci')
+    expect(script).to include('setup_ruby_flash_retry "rv clean-install" "$MAX_RETRIES" "$RV_BIN" ci')
     expect(script).not_to include('run_with_retries')
     expect(script).not_to include('rubygems.org')
     expect(script).not_to include('mirror.https://gem.coop')
@@ -143,7 +143,7 @@ RSpec.describe 'action.yml' do
 
     expect(script).to include('ACTION_REF="${{ github.action_ref }}"')
     expect(script).to include('VERSION="${ACTION_REF#refs/tags/}"')
-    expect(script).to include('git -C "$GITHUB_ACTION_PATH" describe --tags --always --dirty')
+    expect(script).to include('git -C "$ACTION_PATH" describe --tags --always --dirty')
     expect(script).to include('LABEL="v$VERSION"')
     expect(script).to include('LABEL="@$VERSION"')
     expect(script).to include('TITLE="setup-ruby-flash Summary ${LABEL} ⚡"')
@@ -201,7 +201,8 @@ RSpec.describe 'action.yml' do
     expect(script).to include('gem install $gem_args $DOC_FLAG')
     expect(script).to include('SETUP_RUBY_FLASH_PRE_APPRAISAL_ROOT_GEMS')
     expect(script).to include('appraisal-install-retries must be a positive integer')
-    expect(script).to include('export BUNDLE_PATH="$PWD/vendor/appraisal-bundle"')
+    expect(script).to include('BUNDLE_PATH_VALUE="$PWD/vendor/appraisal-bundle"')
+    expect(script).to include('export BUNDLE_PATH="$BUNDLE_PATH_VALUE"')
     expect(script).to include(retry_helper_source)
     expect(script).to include('setup_ruby_flash_retry "appraisal root bundle install" "$MAX_RETRIES" env')
     expect(script).to include('env BUNDLE_GEMFILE="$ROOT_GEMFILE" bundle install --jobs 4')
@@ -209,5 +210,36 @@ RSpec.describe 'action.yml' do
     expect(script).to include('env BUNDLE_GEMFILE="$ROOT_GEMFILE" bundle exec appraisal "$APPRAISAL_NAME" install')
     expect(script).not_to include('run_with_retries')
     expect(script).not_to include('eval')
+  end
+
+  it 'supports Windows platforms for rv installation and environment configuration' do
+    platform_step = steps.fetch(step_names.index('Validate platform'))
+    platform_script = platform_step.fetch('run')
+    expect(platform_script).to include('Windows) OS="windows" ;;')
+    expect(platform_script).to include('x86_64|AMD64)')
+    expect(platform_script).to include('aarch64|arm64|ARM64)')
+
+    install_rv_step = steps.fetch(step_names.index('Install rv from release'))
+    install_rv_script = install_rv_step.fetch('run')
+    expect(install_rv_script).to include('windows-amd64) RV_PLATFORM="x86_64-pc-windows-msvc" ;;')
+    expect(install_rv_script).to include('windows-arm64) RV_PLATFORM="aarch64-pc-windows-msvc" ;;')
+    expect(install_rv_script).to include('DOWNLOAD_URL="https://github.com/spinel-coop/rv/releases/download/v${VERSION}/rv-${RV_PLATFORM}.zip"')
+    expect(install_rv_script).to include('unzip -q -o "$TMP_ZIP" rv.exe rvw.exe -d ~/.local/bin')
+
+    add_path_step = steps.fetch(step_names.index('Add rv to PATH'))
+    expect(add_path_step.fetch('run')).to include('cygpath -w "$HOME/.local/bin"')
+
+    cache_ruby_step = steps.fetch(step_names.index('Cache Ruby installation'))
+    expect(cache_ruby_step.dig('with', 'path')).to include('~/AppData/Roaming/rv/rubies')
+
+    ore_step = steps.fetch(step_names.index('Determine if ore should be installed'))
+    ore_script = ore_step.fetch('run')
+    expect(ore_script).to include('if [ "$RUNNER_OS" = "Windows" ]; then')
+    expect(ore_script).to include('echo "install-ore=false" >> $GITHUB_OUTPUT')
+
+    setup_step = steps.fetch(step_names.index('Configure Ruby environment with rv shell integration'))
+    setup_script = setup_step.fetch('run')
+    expect(setup_script).to include('cygpath -m "$ACTUAL_GEM_HOME"')
+    expect(setup_script).to include('cygpath -w "$RUBY_BIN_DIR"')
   end
 end

@@ -14,7 +14,7 @@ These configurations use the optimized rv and ore tools:
 - **Ruby 3.3** (MRI)
 - **Ruby 3.4** (MRI)
 - **Ruby 4.0** (MRI)
-- **Platforms**: Linux (x86_64, ARM64), macOS (x86_64, ARM64)
+- **Platforms**: Linux (x86_64, ARM64), macOS (x86_64, ARM64), Windows (x86_64, ARM64)
 
 ### 🔄 Compatibility Path (ruby/setup-ruby)
 
@@ -22,7 +22,6 @@ These configurations automatically use ruby/setup-ruby:
 
 - **Ruby versions other than 3.2, 3.3, 3.4, 4.0**: Includes 2.7, 3.0, 3.1, 3.5+, head, etc.
 - **Non-MRI implementations**: JRuby, TruffleRuby, mruby, Rubinius, etc.
-- **Windows**: All Ruby versions on Windows
 - **Unsupported architectures**: i686, ppc64le, etc.
 
 ## How It Works
@@ -135,8 +134,8 @@ jobs:
           ruby-version: ${{ matrix.ruby }}
           bundler-cache: true
       
-      # Linux & macOS: fast path
-      # Windows: automatic compatibility path (platform detection happens first)
+      # Linux, macOS & Windows: fast path for supported Rubies (3.2+)
+      # Older Rubies (< 3.2): automatic compatibility path to ruby/setup-ruby
       
       - run: bundle exec rake test
 ```

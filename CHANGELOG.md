@@ -4,6 +4,12 @@
 
 ### Added
 
+- **Windows Support**: setup-ruby-flash now supports Windows runners (`windows-latest`, Windows Server 2022+) with full feature parity to Linux and macOS
+  - **rv Fast Path on Windows**: Installs prebuilt Windows `rv` binaries (`x86_64-pc-windows-msvc`, `aarch64-pc-windows-msvc`) and manages modern MRI Ruby versions (`3.2`, `3.3`, `3.4`, `4.0`) via prebuilt Ruby packages
+  - **Environment & Path Integration**: Exports Windows-normalized environment variables (`GEM_HOME`, `GEM_PATH`, `BUNDLE_PATH`) and adds Ruby binaries to `GITHUB_PATH` in Windows-compatible format
+  - **Automatic Compatibility Fallback**: Automatically falls back to `ruby/setup-ruby` on Windows for older Rubies (`< 3.2`), alternate engines (JRuby, TruffleRuby), or when forced via `use-setup-ruby`
+  - **Windows Shell Path Safety**: Normalizes backslashes in `GITHUB_ACTION_PATH` to ensure Git Bash correctly sources action scripts and helper utilities
+
 - **Deterministic install failures are not retried**: `gem-install-retries` and `appraisal-install-retries` stop at the first attempt when the failure will repeat
   - Recognized failures: native extension build errors, dependency resolution conflicts, incompatible Ruby versions, Gemfile/gemspec load errors, lockfile or platform mismatches, and git authentication failures
   - Transient failures (network errors, a gem not yet in the index) still retry with exponential backoff

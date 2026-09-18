@@ -453,8 +453,10 @@ runs:
         fi
 
         FAST_BUNDLER_INSTALL="false"
-        if [ "$USE_FALLBACK" != "true" ] && [ "$ORE_INSTALL" != "true" ] && [ "$INSTALL_MAIN_BUNDLE" = "true" ]; then
-          FAST_BUNDLER_INSTALL="true"
+        if [ "$USE_FALLBACK" != "true" ] && [ "$INSTALL_MAIN_BUNDLE" = "true" ]; then
+          if [ "$ORE_INSTALL" != "true" ] || [ "$RUNNER_OS" = "Windows" ]; then
+            FAST_BUNDLER_INSTALL="true"
+          fi
         fi
 
         MANUAL_COMPATIBILITY_BUNDLE="false"
@@ -486,8 +488,9 @@ runs:
         VERSION="${ACTION_REF#refs/tags/}"
         VERSION="${VERSION#refs/heads/}"
 
-        if [ -z "$VERSION" ] && [ -n "${GITHUB_ACTION_PATH:-}" ] && git -C "$GITHUB_ACTION_PATH" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-          VERSION=$(git -C "$GITHUB_ACTION_PATH" describe --tags --always --dirty 2>/dev/null || true)
+        ACTION_PATH="${GITHUB_ACTION_PATH//\\//}"
+        if [ -z "$VERSION" ] && [ -n "$ACTION_PATH" ] && git -C "$ACTION_PATH" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+          VERSION=$(git -C "$ACTION_PATH" describe --tags --always --dirty 2>/dev/null || true)
         fi
 
         if [ -n "$VERSION" ]; then
@@ -571,8 +574,9 @@ runs:
         case "$RUNNER_OS" in
           Linux)   OS="linux" ;;
           macOS)   OS="darwin" ;;
+          Windows) OS="windows" ;;
           *)
-            echo "::error::Unsupported OS: $RUNNER_OS. setup-ruby-flash only supports Linux and macOS."
+            echo "::error::Unsupported OS: $RUNNER_OS. setup-ruby-flash only supports Linux, macOS, and Windows."
             exit 1
             ;;
         esac
@@ -580,9 +584,8 @@ runs:
         # Detect architecture
         ARCH="$(uname -m)"
         case "$ARCH" in
-          x86_64)  ARCH="amd64" ;;
-          aarch64) ARCH="arm64" ;;
-          arm64)   ARCH="arm64" ;;
+          x86_64|AMD64)        ARCH="amd64" ;;
+          aarch64|arm64|ARM64) ARCH="arm64" ;;
           *)
             echo "::error::Unsupported architecture: $ARCH. setup-ruby-flash only supports x86_64 and arm64."
             exit 1
@@ -621,7 +624,7 @@ runs:
           VERSION="${COMMIT_SHA:0:12}"  # Use first 12 chars of SHA
           echo "Using rv git ref: $GIT_REF (commit: $VERSION)"
         elif [ "${{ inputs.rv-version }}" = "latest" ]; then
-          VERSION=$(gh api repos/spinel-coop/rv/releases/latest --jq '.tag_name' 2>/dev/null || echo "v0.4.1")
+          VERSION=$(gh api repos/spinel-coop/rv/releases/latest --jq '.tag_name' 2>/dev/null || echo "v0.7.0")
           echo "build-from-source=false" >> $GITHUB_OUTPUT
         else
           VERSION="${{ inputs.rv-version }}"
@@ -636,7 +639,10 @@ runs:
       id: cache-rv
       uses: actions/cache@v4
       with:
-        path: ~/.local/bin/rv
+        path: |
+          ~/.local/bin/rv
+          ~/.local/bin/rv.exe
+          ~/.local/bin/rvw.exe
         key: setup-ruby-flash-rv-${{ steps.platform.outputs.platform }}-${{ steps.rv-version.outputs.version }}-${{ steps.rv-version.outputs.build-from-source }}
 
     - name: Setup Rust toolchain for rv
@@ -665,8 +671,9 @@ runs:
         fi
 
         # Clone repository (shallow clone for speed)
-        git clone --depth 1 "$REPO_URL" /tmp/rv-build
-        cd /tmp/rv-build
+        BUILD_DIR=$(mktemp -d)
+        git clone --depth 1 "$REPO_URL" "$BUILD_DIR"
+        cd "$BUILD_DIR"
         # Fetch the specific ref if shallow clone doesn't have it
         if ! git checkout "$REF" 2>/dev/null; then
           git fetch --depth 1 origin "$REF"
@@ -676,14 +683,20 @@ runs:
           fi
         fi
 
-
         # Build rv using cargo
         cargo build --release
 
         # Install to ~/.local/bin
         mkdir -p ~/.local/bin
-        cp target/release/rv ~/.local/bin/rv
-        chmod +x ~/.local/bin/rv
+        if [ -f target/release/rv.exe ]; then
+          cp target/release/rv.exe ~/.local/bin/rv.exe
+          cp target/release/rv.exe ~/.local/bin/rv 2>/dev/null || true
+          [ -f target/release/rvw.exe ] && cp target/release/rvw.exe ~/.local/bin/rvw.exe 2>/dev/null || true
+          chmod +x ~/.local/bin/rv.exe ~/.local/bin/rv ~/.local/bin/rvw.exe 2>/dev/null || true
+        else
+          cp target/release/rv ~/.local/bin/rv
+          chmod +x ~/.local/bin/rv
+        fi
 
         END_TIME=$(date +%s)
         ELAPSED=$((END_TIME - START_TIME))
@@ -692,7 +705,8 @@ runs:
         ~/.local/bin/rv --version
 
         # Cleanup build directory
-        rm -rf /tmp/rv-build
+        cd - >/dev/null
+        rm -rf "$BUILD_DIR"
 
     - name: Install rv from release
       if: steps.check-support.outputs.use-fallback != 'true' && steps.cache-rv.outputs.cache-hit != 'true' && steps.rv-version.outputs.build-from-source == 'false'
@@ -706,19 +720,33 @@ runs:
 
         # Map to rv platform names
         case "$OS-$ARCH" in
-          linux-amd64)  RV_PLATFORM="x86_64-unknown-linux-gnu" ;;
-          linux-arm64)  RV_PLATFORM="aarch64-unknown-linux-gnu" ;;
-          darwin-amd64) RV_PLATFORM="x86_64-apple-darwin" ;;
-          darwin-arm64) RV_PLATFORM="aarch64-apple-darwin" ;;
+          linux-amd64)   RV_PLATFORM="x86_64-unknown-linux-gnu" ;;
+          linux-arm64)   RV_PLATFORM="aarch64-unknown-linux-gnu" ;;
+          darwin-amd64)  RV_PLATFORM="x86_64-apple-darwin" ;;
+          darwin-arm64)  RV_PLATFORM="aarch64-apple-darwin" ;;
+          windows-amd64) RV_PLATFORM="x86_64-pc-windows-msvc" ;;
+          windows-arm64) RV_PLATFORM="aarch64-pc-windows-msvc" ;;
         esac
 
-        # rv releases use .tar.xz format with files in a subdirectory
-        DOWNLOAD_URL="https://github.com/spinel-coop/rv/releases/download/v${VERSION}/rv-${RV_PLATFORM}.tar.xz"
-        echo "Downloading rv from: $DOWNLOAD_URL"
-
         mkdir -p ~/.local/bin
-        curl -fsSL "$DOWNLOAD_URL" | tar -xJ --strip-components=1 -C ~/.local/bin "rv-${RV_PLATFORM}/rv"
-        chmod +x ~/.local/bin/rv
+
+        if [ "$OS" = "windows" ]; then
+          DOWNLOAD_URL="https://github.com/spinel-coop/rv/releases/download/v${VERSION}/rv-${RV_PLATFORM}.zip"
+          echo "Downloading rv from: $DOWNLOAD_URL"
+          TMP_ZIP=$(mktemp -u --suffix=.zip)
+          curl -fsSL "$DOWNLOAD_URL" -o "$TMP_ZIP"
+          unzip -q -o "$TMP_ZIP" rv.exe rvw.exe -d ~/.local/bin
+          rm -f "$TMP_ZIP"
+          cp -f ~/.local/bin/rv.exe ~/.local/bin/rv 2>/dev/null || true
+          chmod +x ~/.local/bin/rv.exe ~/.local/bin/rvw.exe ~/.local/bin/rv 2>/dev/null || true
+        else
+          # rv releases use .tar.xz format with files in a subdirectory
+          DOWNLOAD_URL="https://github.com/spinel-coop/rv/releases/download/v${VERSION}/rv-${RV_PLATFORM}.tar.xz"
+          echo "Downloading rv from: $DOWNLOAD_URL"
+
+          curl -fsSL "$DOWNLOAD_URL" | tar -xJ --strip-components=1 -C ~/.local/bin "rv-${RV_PLATFORM}/rv"
+          chmod +x ~/.local/bin/rv
+        fi
 
         END_TIME=$(date +%s)
         ELAPSED=$((END_TIME - START_TIME))
@@ -729,7 +757,11 @@ runs:
       if: steps.check-support.outputs.use-fallback != 'true'
       shell: bash
       run: |
-        echo "$HOME/.local/bin" >> $GITHUB_PATH
+        if [ "$RUNNER_OS" = "Windows" ]; then
+          echo "$(cygpath -w "$HOME/.local/bin")" >> "$GITHUB_PATH"
+        else
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+        fi
 
     - name: Detect Ruby version
       if: steps.check-support.outputs.use-fallback != 'true'
@@ -790,7 +822,11 @@ runs:
       id: cache-ruby
       uses: actions/cache@v4
       with:
-        path: ~/.local/share/rv/rubies
+        path: |
+          ~/.local/share/rv/rubies
+          ~/AppData/Roaming/rv/rubies
+          ~/AppData/Local/rv/rubies
+          ~/Library/Application Support/rv/rubies
         key: setup-ruby-flash-ruby-${{ inputs.cache-version }}-${{ steps.platform.outputs.platform }}-${{ steps.detect-ruby.outputs.version }}
 
     - name: Install Ruby
@@ -811,11 +847,16 @@ runs:
 
         echo "Installing Ruby $RUBY_VERSION via rv (max retries: $MAX_RETRIES)..."
 
+        RV_BIN="$HOME/.local/bin/rv"
+        if [ -f "$HOME/.local/bin/rv.exe" ]; then
+          RV_BIN="$HOME/.local/bin/rv.exe"
+        fi
+
         while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
           RETRY_COUNT=$((RETRY_COUNT + 1))
           echo "Attempt $RETRY_COUNT of $MAX_RETRIES..."
         
-          if ~/.local/bin/rv ruby install "$RUBY_VERSION"; then
+          if "$RV_BIN" ruby install "$RUBY_VERSION"; then
             END_TIME=$(date +%s)
             ELAPSED=$((END_TIME - START_TIME))
             echo "install-time=$ELAPSED" >> $GITHUB_OUTPUT
@@ -846,15 +887,20 @@ runs:
         echo "$RUBY_VERSION" > .ruby-version
         echo "Created .ruby-version with $RUBY_VERSION"
 
+        RV_BIN="$HOME/.local/bin/rv"
+        if [ -f "$HOME/.local/bin/rv.exe" ]; then
+          RV_BIN="$HOME/.local/bin/rv.exe"
+        fi
+
         # Activate rv shell integration to set up PATH and environment
         # This will now use the .ruby-version file we just created
-        eval "$(~/.local/bin/rv shell env bash)"
+        eval "$("$RV_BIN" shell env bash)"
 
         # Verify Ruby is now active
         RUBY_EXECUTABLE=$(which ruby)
         if [ -z "$RUBY_EXECUTABLE" ]; then
           echo "::error::Ruby not found in PATH after rv activation"
-          ~/.local/bin/rv ruby list || true
+          "$RV_BIN" ruby list || true
           exit 1
         fi
 
@@ -873,17 +919,24 @@ runs:
         echo "Setting GEM_HOME to: $ACTUAL_GEM_HOME"
         
         # Export environment variables to GITHUB_ENV for subsequent steps
-        echo "GEM_HOME=$ACTUAL_GEM_HOME" >> $GITHUB_ENV
-        echo "GEM_PATH=$ACTUAL_GEM_PATH" >> $GITHUB_ENV
+        if [ "$RUNNER_OS" = "Windows" ]; then
+          ACTUAL_GEM_HOME_WIN=$(cygpath -m "$ACTUAL_GEM_HOME")
+          ACTUAL_GEM_PATH_WIN="$ACTUAL_GEM_HOME_WIN"
+          echo "GEM_HOME=$ACTUAL_GEM_HOME_WIN" >> "$GITHUB_ENV"
+          echo "GEM_PATH=$ACTUAL_GEM_PATH_WIN" >> "$GITHUB_ENV"
+          [ -n "$RUBY_ROOT" ] && echo "RUBY_ROOT=$(cygpath -m "$RUBY_ROOT")" >> "$GITHUB_ENV"
+          echo "$(cygpath -w "$RUBY_BIN_DIR")" >> "$GITHUB_PATH"
+        else
+          echo "GEM_HOME=$ACTUAL_GEM_HOME" >> "$GITHUB_ENV"
+          echo "GEM_PATH=$ACTUAL_GEM_PATH" >> "$GITHUB_ENV"
+          [ -n "$RUBY_ROOT" ] && echo "RUBY_ROOT=$RUBY_ROOT" >> "$GITHUB_ENV"
+          echo "$RUBY_BIN_DIR" >> "$GITHUB_PATH"
+        fi
         
         # Export other Ruby-related variables if they're set
-        [ -n "$RUBY_ROOT" ] && echo "RUBY_ROOT=$RUBY_ROOT" >> $GITHUB_ENV
-        [ -n "$RUBY_ENGINE" ] && echo "RUBY_ENGINE=$RUBY_ENGINE" >> $GITHUB_ENV
-        [ -n "$RUBY_VERSION" ] && echo "RUBY_VERSION=$RUBY_VERSION" >> $GITHUB_ENV
-        [ -n "$RUBYOPT" ] && echo "RUBYOPT=$RUBYOPT" >> $GITHUB_ENV
-
-        # Add Ruby to GITHUB_PATH for subsequent steps
-        echo "$RUBY_BIN_DIR" >> $GITHUB_PATH
+        [ -n "$RUBY_ENGINE" ] && echo "RUBY_ENGINE=$RUBY_ENGINE" >> "$GITHUB_ENV"
+        [ -n "$RUBY_VERSION" ] && echo "RUBY_VERSION=$RUBY_VERSION" >> "$GITHUB_ENV"
+        [ -n "$RUBYOPT" ] && echo "RUBYOPT=$RUBYOPT" >> "$GITHUB_ENV"
 
         # Get versions for outputs
         GEM_VERSION=$(gem --version)
@@ -1095,6 +1148,15 @@ runs:
         ORE_SETUP="${{ inputs.ore-setup }}"
         ORE_INSTALL="${{ inputs.ore-install }}"
         BUNDLER_CACHE="${{ inputs.bundler-cache }}"
+
+        if [ "$RUNNER_OS" = "Windows" ]; then
+          if [ "$ORE_SETUP" = "true" ] || [ "$ORE_INSTALL" = "true" ]; then
+            echo "::notice::ore is not currently supported on Windows. Using rv clean-install instead."
+          fi
+          echo "install-ore=false" >> $GITHUB_OUTPUT
+          echo "Ore will NOT be installed (Windows platform)"
+          exit 0
+        fi
         
         # Determine if ore should be installed. bundler-cache uses rv's native
         # clean-install path by default; ore remains opt-in through ore-install
@@ -1188,16 +1250,25 @@ runs:
         START_TIME=$(date +%s)
 
         # Retries transient failures; stops early on deterministic ones.
-        source "$GITHUB_ACTION_PATH/scripts/retry.sh"
+        source "${GITHUB_ACTION_PATH//\\//}/scripts/retry.sh"
 
         if [ ! -f "$LOCKFILE" ]; then
           echo "Lockfile $LOCKFILE not found; generating it with Bundler before rv clean-install."
           setup_ruby_flash_retry "bundle lock" "$MAX_RETRIES" bundle lock --gemfile "$GEMFILE"
         fi
 
-        BUNDLE_PATH_VALUE="$PWD/vendor/bundle"
+        if [ "$RUNNER_OS" = "Windows" ]; then
+          BUNDLE_PATH_VALUE="$(cygpath -m "$PWD")/vendor/bundle"
+        else
+          BUNDLE_PATH_VALUE="$PWD/vendor/bundle"
+        fi
         export BUNDLE_PATH="$BUNDLE_PATH_VALUE"
         echo "BUNDLE_PATH=$BUNDLE_PATH_VALUE" >> "$GITHUB_ENV"
+
+        RV_BIN="$HOME/.local/bin/rv"
+        if [ -f "$HOME/.local/bin/rv.exe" ]; then
+          RV_BIN="$HOME/.local/bin/rv.exe"
+        fi
 
         # A restored cache is not necessarily an exact match: actions/cache's
         # restore-keys fallback happily returns the newest cache whose key
@@ -1213,7 +1284,7 @@ runs:
         if [ "${{ steps.cache-bundler-gems.outputs.cache-hit }}" != "true" ]; then
           RV_CI_ARGS+=(--force)
         fi
-        setup_ruby_flash_retry "rv clean-install" "$MAX_RETRIES" ~/.local/bin/rv ci "${RV_CI_ARGS[@]}"
+        setup_ruby_flash_retry "rv clean-install" "$MAX_RETRIES" "$RV_BIN" ci "${RV_CI_ARGS[@]}"
 
         END_TIME=$(date +%s)
         ELAPSED=$((END_TIME - START_TIME))
@@ -1270,7 +1341,7 @@ runs:
         fi
 
         # Retries transient failures; stops early on deterministic ones.
-        source "$GITHUB_ACTION_PATH/scripts/retry.sh"
+        source "${GITHUB_ACTION_PATH//\\//}/scripts/retry.sh"
 
         bundle config set --local path vendor/bundle
         setup_ruby_flash_retry "bundle install for $GEMFILE" "$MAX_RETRIES" bundle install --gemfile "$GEMFILE" --jobs 4
@@ -1356,10 +1427,15 @@ runs:
         fi
 
         # Retries transient failures; stops early on deterministic ones.
-        source "$GITHUB_ACTION_PATH/scripts/retry.sh"
+        source "${GITHUB_ACTION_PATH//\\//}/scripts/retry.sh"
 
-        export BUNDLE_PATH="$PWD/vendor/appraisal-bundle"
-        echo "BUNDLE_PATH=$BUNDLE_PATH" >> "$GITHUB_ENV"
+        if [ "$RUNNER_OS" = "Windows" ]; then
+          BUNDLE_PATH_VALUE="$(cygpath -m "$PWD")/vendor/appraisal-bundle"
+        else
+          BUNDLE_PATH_VALUE="$PWD/vendor/appraisal-bundle"
+        fi
+        export BUNDLE_PATH="$BUNDLE_PATH_VALUE"
+        echo "BUNDLE_PATH=$BUNDLE_PATH_VALUE" >> "$GITHUB_ENV"
         setup_ruby_flash_retry "appraisal root bundle install" "$MAX_RETRIES" env BUNDLE_GEMFILE="$ROOT_GEMFILE" bundle install --jobs 4
         setup_ruby_flash_retry "appraisal install" "$MAX_RETRIES" env BUNDLE_GEMFILE="$ROOT_GEMFILE" bundle exec appraisal "$APPRAISAL_NAME" install
 
