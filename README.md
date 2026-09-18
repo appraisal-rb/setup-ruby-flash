@@ -33,7 +33,7 @@ A _fast_ GitHub Action for fast Ruby environment setup using [rv](https://github
 - 🚀 **Lightning-fast Ruby installation** via prebuilt binaries from rv
 - 📦 **Gem installation via `rv clean-install`** (Bundler-compatible, no separate gem manager to install)
 - 💾 **Intelligent caching** for both Ruby and gems
-- 🐧 **Linux & macOS support** (x86_64 and ARM64)
+- 🐧 🍏 🪟 **Linux, macOS & Windows support** (x86_64 and ARM64)
 - ☕️ **Gitea [Actions](https://docs.gitea.com/usage/actions/overview) support**
 - 🦊 **Forgejo [Actions](https://forgejo.org/docs/next/admin/actions/) support**
 - 🧊 **Codeberg [Actions](https://docs.codeberg.org/ci/actions/) support**
@@ -43,7 +43,7 @@ A _fast_ GitHub Action for fast Ruby environment setup using [rv](https://github
 
 ## Requirements
 
-- **Operating Systems**: Ubuntu 22.04+, macOS 14+
+- **Operating Systems**: Ubuntu 22.04+, macOS 14+, Windows Server 2022+ (windows-latest)
 - **Architectures**: x86_64, ARM64
 - **Ruby Versions**: 3.2, 3.3, 3.4, 4.0 (MRI only)
 
@@ -53,7 +53,7 @@ For configurations outside rv's fast path, setup-ruby-flash **automatically uses
 
 - **Ruby versions < 3.2** (e.g., 2.7, 3.0, 3.1)
 - **Non-MRI implementations** (JRuby, TruffleRuby, etc.)
-- **Windows** (via platform detection)
+- **Unsupported architectures** (i686, ppc64le, etc.)
 
 This means you can use setup-ruby-flash everywhere and get the best performance where available, with the expected setup-ruby path for Ruby heads and alternate engines.
 
