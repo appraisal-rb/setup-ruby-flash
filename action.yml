@@ -1049,7 +1049,6 @@ runs:
             FSTAB="$root/etc/fstab"
             touch "$FSTAB"
             for d in "${ACTIVE_DRIVES[@]}"; do
-              mkdir -p "${root}/${d}"
               grep -E -q "^${d}:/[[:space:]]+/${d}([[:space:]]|$)" "$FSTAB" 2>/dev/null || echo "${d}:/ /${d} ntfs binary,noacl,auto 1 1" >> "$FSTAB"
             done
             echo "Fstab ($FSTAB):"
@@ -1061,9 +1060,15 @@ runs:
             foreach (\$d in @('C', 'D')) {
               \$target = \"\${d}:\\\"
               foreach (\$root in @('C:\\msys64', 'C:\\Program Files\\Git', 'C:\\mingw64', 'C:', 'D:')) {
-                if (Test-Path \$root) {
+                if (Test-Path -LiteralPath \$root) {
                   \$junction = Join-Path \$root \$d
-                  if (-not (Test-Path \$junction)) {
+                  if (Test-Path -LiteralPath \$junction) {
+                    \$item = Get-Item -LiteralPath \$junction -Force
+                    if (\$item.LinkType -ne 'Junction') {
+                      Remove-Item -LiteralPath \$junction -Force -Recurse
+                    }
+                  }
+                  if (-not (Test-Path -LiteralPath \$junction)) {
                     New-Item -ItemType Junction -Path \$junction -Value \$target -Force -ErrorAction SilentlyContinue | Out-Null
                   }
                 }
@@ -1095,11 +1100,17 @@ runs:
           echo "==> Verifying Win32 junction resolution via PowerShell:"
           powershell -NoProfile -Command "
             Get-Item 'C:\C', 'C:\D', 'D:\C', 'D:\D', 'C:\msys64\C', 'C:\msys64\D' -ErrorAction SilentlyContinue | Select-Object FullName, LinkType, Target | Format-Table -AutoSize
-            \$testHeader = 'D:\C\Users\runneradmin\AppData\Roaming\rv\rubies\ruby-' + '${FULL_RUBY_VERSION}' + '\include\ruby-' + '${MAJOR_MINOR}' + '.0\ruby.h'
-            if (Test-Path \$testHeader) {
-              Write-Host 'SUCCESS: Header is accessible via Win32 D:\C path:' \$testHeader
+            \$testHeaderD = 'D:\C\Users\runneradmin\AppData\Roaming\rv\rubies\ruby-' + '${FULL_RUBY_VERSION}' + '\include\ruby-' + '${MAJOR_MINOR}' + '.0\ruby.h'
+            \$testHeaderMsys = 'C:\msys64\C\Users\runneradmin\AppData\Roaming\rv\rubies\ruby-' + '${FULL_RUBY_VERSION}' + '\include\ruby-' + '${MAJOR_MINOR}' + '.0\ruby.h'
+            if (Test-Path \$testHeaderD) {
+              Write-Host 'SUCCESS: Header is accessible via Win32 D:\C path:' \$testHeaderD
             } else {
-              Write-Host 'WARNING: Header not found via Win32 D:\C path:' \$testHeader
+              Write-Host 'WARNING: Header not found via Win32 D:\C path:' \$testHeaderD
+            }
+            if (Test-Path \$testHeaderMsys) {
+              Write-Host 'SUCCESS: Header is accessible via MSYS2 C:\msys64\C path:' \$testHeaderMsys
+            } else {
+              Write-Host 'WARNING: Header not found via MSYS2 C:\msys64\C path:' \$testHeaderMsys
             }
           " 2>&1 || true
         else
