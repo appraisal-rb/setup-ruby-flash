@@ -229,7 +229,7 @@ jobs:
           echo "GEM_HOME=$GEM_HOME" >> tmp/verify.txt 2>&1
           if [ -d "$GEM_HOME/gems" ]; then
             echo "Contents of $GEM_HOME/gems:" >> tmp/verify.txt 2>&1
-            ls -la "$GEM_HOME/gems" | head -20 >> tmp/verify.txt 2>&1
+            (set +o pipefail; ls -la "$GEM_HOME/gems" | head -20 >> tmp/verify.txt 2>&1)
           else
             echo "⚠️  $GEM_HOME/gems does not exist!" >> tmp/verify.txt 2>&1
           fi
@@ -329,7 +329,7 @@ jobs:
           echo "GEM_HOME=$GEM_HOME" >> tmp/verify.txt 2>&1
           if [ -d "$GEM_HOME/gems" ]; then
             echo "Contents of $GEM_HOME/gems:" >> tmp/verify.txt 2>&1
-            ls -la "$GEM_HOME/gems" | head -20 >> tmp/verify.txt 2>&1
+            (set +o pipefail; ls -la "$GEM_HOME/gems" | head -20 >> tmp/verify.txt 2>&1)
           else
             echo "⚠️  $GEM_HOME/gems does not exist!" >> tmp/verify.txt 2>&1
           fi

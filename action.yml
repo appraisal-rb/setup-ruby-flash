@@ -684,7 +684,7 @@ runs:
         fi
 
         # Build rv using cargo
-        cargo build --release
+        cargo build --release -p rv
 
         # Install to ~/.local/bin
         mkdir -p ~/.local/bin
