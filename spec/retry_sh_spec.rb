@@ -95,7 +95,8 @@ RSpec.describe 'scripts/retry.sh' do
 
   it 'recognizes each deterministic failure category' do
     expect(classify('Gem::Ext::BuildError: ERROR')).to eq('native extension build failure')
-    expect(classify("Warning: Could not compile gem racc-1.8.1's extension ext/racc/cparse/extconf.rb. Got exit code 2.")).to eq('native extension build failure')
+    warning = "Warning: Could not compile gem racc-1.8.1's extension ext/racc/cparse/extconf.rb. Got exit code 2."
+    expect(classify(warning)).to eq('native extension build failure')
     expect(classify('Error: CiError(CompileFailures { gem: "racc-1.8.1" })')).to eq('native extension build failure')
     expect(classify('version solving has failed.')).to eq('dependency resolution conflict')
     expect(classify('nokogiri-1.18.0 requires ruby version >= 3.2')).to eq('incompatible Ruby version')
