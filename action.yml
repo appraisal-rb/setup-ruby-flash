@@ -686,14 +686,7 @@ runs:
         # On Windows, fix clean_install.rs to use forward slashes in make sitearchdir/sitelibdir arguments
         # so make's /bin/sh recipe execution does not unescape backslashes.
         if [ "$RUNNER_OS" = "Windows" ] && [ -f crates/rv/src/commands/clean_install.rs ]; then
-          python3 -c "
-import pathlib
-p = pathlib.Path('crates/rv/src/commands/clean_install.rs')
-if p.exists():
-    content = p.read_text('utf-8')
-    content = content.replace('tmp_dir.path()', 'tmp_dir.path().as_str().replace(\x27\\\\x27, \"/\")')
-    p.write_text(content, 'utf-8')
-" || true
+          sed -i 's/tmp_dir\.path()/tmp_dir.path().as_str().replace(\x27\\\\\x27, "\/")/g' crates/rv/src/commands/clean_install.rs || true
         fi
 
         # Build rv using cargo
