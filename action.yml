@@ -894,10 +894,35 @@ runs:
 
         # Activate rv shell integration to set up PATH and environment
         # This will now use the .ruby-version file we just created
-        eval "$("$RV_BIN" shell env bash)"
+        ORIG_PATH="$PATH"
+        if [ "$RUNNER_OS" = "Windows" ]; then
+          # On Windows, rv shell env bash outputs Windows drive paths separated by colons (e.g. C:/foo:C:/bar).
+          # In bash, colons after drive letters split the path into 'C' and '/foo', breaking PATH and system utilities.
+          # Convert drive letters 'C:/...' to MSYS2 POSIX paths '/c/...' so bash can resolve binaries.
+          RV_ENV=$("$RV_BIN" shell env bash | sed -E 's/([A-Za-z]):\//\/\L\1\//g')
+          eval "$RV_ENV"
+          # Ensure runner's original PATH (including /usr/bin) is preserved at the end
+          PATH="$PATH:$ORIG_PATH"
+        else
+          eval "$("$RV_BIN" shell env bash)"
+        fi
 
         # Verify Ruby is now active
-        RUBY_EXECUTABLE=$(which ruby)
+        RUBY_EXECUTABLE=$(command -v ruby 2>/dev/null || which ruby 2>/dev/null || true)
+        if [ -z "$RUBY_EXECUTABLE" ] && [ "$RUNNER_OS" = "Windows" ]; then
+          # Fallback on Windows if rv shell env PATH wasn't picked up by bash
+          RUBY_DIR=$("$RV_BIN" ruby dir 2>/dev/null | tr -d '\r' | sed -r "s/\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[mGK]//g" || true)
+          if [ -n "$RUBY_DIR" ]; then
+            RUBY_DIR_POSIX=$(echo "$RUBY_DIR" | sed -E 's/([A-Za-z]):[\\\/]/\/\L\1\//g' | tr '\\' '/')
+            for r in "$RUBY_DIR_POSIX"/ruby-${RUBY_VERSION}*/bin/ruby.exe "$RUBY_DIR_POSIX"/ruby-${RUBY_VERSION}*/bin/ruby; do
+              if [ -f "$r" ]; then
+                RUBY_EXECUTABLE="$r"
+                PATH="$(dirname "$r"):$PATH"
+                break
+              fi
+            done
+          fi
+        fi
         if [ -z "$RUBY_EXECUTABLE" ]; then
           echo "::error::Ruby not found in PATH after rv activation"
           "$RV_BIN" ruby list || true
@@ -1584,7 +1609,7 @@ runs:
         fi
         
         # Verify Ruby is active
-        echo "Ruby in PATH: $(which ruby)"
+        echo "Ruby in PATH: $(command -v ruby 2>/dev/null || which ruby 2>/dev/null || echo 'not found')"
         echo "Ruby version: $(ruby --version)"
         
         GIT_REF="${{ inputs.ore-git-ref }}"
@@ -1755,7 +1780,7 @@ runs:
 
         # Verify we're using the right Ruby (only show when debugging)
         if [ "$ORE_DEBUG_ENABLED" = "true" ]; then
-          echo "Using Ruby: $(which ruby)"
+          echo "Using Ruby: $(command -v ruby 2>/dev/null || which ruby 2>/dev/null || echo 'not found')"
           echo "Ruby version: $(ruby --version)"
           echo "GEM_HOME: $GEM_HOME"
         fi
