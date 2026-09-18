@@ -950,7 +950,79 @@ runs:
           echo "GEM_HOME=$ACTUAL_GEM_HOME_WIN" >> "$GITHUB_ENV"
           echo "GEM_PATH=$ACTUAL_GEM_PATH_WIN" >> "$GITHUB_ENV"
           [ -n "$RUBY_ROOT" ] && echo "RUBY_ROOT=$(cygpath -m "$RUBY_ROOT")" >> "$GITHUB_ENV"
+
+          # Enable MSYS2 / MinGW DevKit for compiling native C extension gems
+          RIDK_CMD="$RUBY_BIN_DIR/ridk.cmd"
+          if [ -f "$RIDK_CMD" ]; then
+            echo "Enabling MSYS2 DevKit via ridk..."
+            RIDK_OUTPUT=$(cmd.exe /c "set MAKE=make && \"$(cygpath -w "$RIDK_CMD")\" enable" 2>/dev/null || true)
+            while IFS='=' read -r key val; do
+              val=$(echo "$val" | tr -d '\r')
+              key=$(echo "$key" | tr -d '\r')
+              case "$key" in
+                PATH)
+                  IFS=';' read -ra ADDR <<< "$val"
+                  for p in "${ADDR[@]}"; do
+                    if [ -n "$p" ] && [ -d "$p" ]; then
+                      echo "$p" >> "$GITHUB_PATH"
+                      PATH="$p:$PATH"
+                    fi
+                  done
+                  ;;
+                MSYSTEM|MINGW_PACKAGE_PREFIX|RI_DEVKIT|PKG_CONFIG_PATH|ACLOCAL_PATH|MANPATH)
+                  echo "$key=$val" >> "$GITHUB_ENV"
+                  export "$key=$val"
+                  ;;
+              esac
+            done <<< "$RIDK_OUTPUT"
+            echo "MAKE=make" >> "$GITHUB_ENV"
+            export MAKE=make
+          elif [ -d "C:/msys64" ]; then
+            echo "Enabling pre-installed MSYS2 DevKit..."
+            MAJOR_VERSION=$(echo "$FULL_RUBY_VERSION" | cut -d. -f1)
+            MINOR_VERSION=$(echo "$FULL_RUBY_VERSION" | cut -d. -f2)
+            if [ "$MAJOR_VERSION" -ge 4 ] || ([ "$MAJOR_VERSION" -eq 3 ] && [ "$MINOR_VERSION" -ge 1 ]); then
+              TOOLCHAIN="ucrt64"
+            else
+              TOOLCHAIN="mingw64"
+            fi
+            if [ -d "C:/msys64/$TOOLCHAIN/bin" ]; then
+              echo "C:\\msys64\\$TOOLCHAIN\\bin" >> "$GITHUB_PATH"
+              PATH="/c/msys64/$TOOLCHAIN/bin:$PATH"
+            fi
+            if [ -d "C:/msys64/usr/bin" ]; then
+              echo "C:\\msys64\\usr\\bin" >> "$GITHUB_PATH"
+              PATH="/c/msys64/usr/bin:$PATH"
+            fi
+            echo "MAKE=make" >> "$GITHUB_ENV"
+            export MAKE=make
+            echo "RI_DEVKIT=C:\\msys64" >> "$GITHUB_ENV"
+            export RI_DEVKIT="C:\\msys64"
+            echo "MSYSTEM=${TOOLCHAIN^^}" >> "$GITHUB_ENV"
+            export MSYSTEM="${TOOLCHAIN^^}"
+          fi
+
+          # Prepend Ruby bin dir to GITHUB_PATH so Ruby binaries take precedence
           echo "$(cygpath -w "$RUBY_BIN_DIR")" >> "$GITHUB_PATH"
+
+          # Ensure MSYS2 and make can resolve Windows drive paths formatted as /C/... or /D/...
+          # by adding /etc/fstab mount entries and creating directory junctions.
+          for fstab in "$(cygpath -w /etc/fstab 2>/dev/null || true)" "C:/msys64/etc/fstab"; do
+            if [ -f "$fstab" ]; then
+              grep -q "^c: /C" "$fstab" 2>/dev/null || echo "c: /C" >> "$fstab" || true
+              grep -q "^d: /D" "$fstab" 2>/dev/null || echo "d: /D" >> "$fstab" || true
+            fi
+          done
+
+          GIT_ROOT="$(cygpath -w / 2>/dev/null || true)"
+          if [ -n "$GIT_ROOT" ] && [ -d "$GIT_ROOT" ]; then
+            cmd.exe /c "if not exist \"${GIT_ROOT}\\C\" mklink /J \"${GIT_ROOT}\\C\" C:\\" >/dev/null 2>&1 || true
+            cmd.exe /c "if not exist \"${GIT_ROOT}\\D\" mklink /J \"${GIT_ROOT}\\D\" D:\\" >/dev/null 2>&1 || true
+          fi
+          cmd.exe /c "if not exist C:\\C mklink /J C:\\C C:\\" >/dev/null 2>&1 || true
+          cmd.exe /c "if not exist C:\\D mklink /J C:\\D D:\\" >/dev/null 2>&1 || true
+          cmd.exe /c "if not exist D:\\C mklink /J D:\\C C:\\" >/dev/null 2>&1 || true
+          cmd.exe /c "if not exist D:\\D mklink /J D:\\D D:\\" >/dev/null 2>&1 || true
         else
           echo "GEM_HOME=$ACTUAL_GEM_HOME" >> "$GITHUB_ENV"
           echo "GEM_PATH=$ACTUAL_GEM_PATH" >> "$GITHUB_ENV"
@@ -1309,7 +1381,13 @@ runs:
         if [ "${{ steps.cache-bundler-gems.outputs.cache-hit }}" != "true" ]; then
           RV_CI_ARGS+=(--force)
         fi
-        setup_ruby_flash_retry "rv clean-install" "$MAX_RETRIES" "$RV_BIN" ci "${RV_CI_ARGS[@]}"
+        GEM_MANAGER="rv clean-install"
+        if ! setup_ruby_flash_retry "rv clean-install" "$MAX_RETRIES" "$RV_BIN" ci "${RV_CI_ARGS[@]}"; then
+          echo "::warning::rv clean-install failed; falling back to bundle install"
+          GEM_MANAGER="bundle install (rv clean-install fallback)"
+          bundle config set --local path vendor/bundle
+          setup_ruby_flash_retry "bundle install for $GEMFILE" "$MAX_RETRIES" bundle install --gemfile "$GEMFILE" --jobs 4
+        fi
 
         END_TIME=$(date +%s)
         ELAPSED=$((END_TIME - START_TIME))
@@ -1337,7 +1415,7 @@ runs:
         echo "| RubyGems Version | $RUBYGEMS_VERSION |" >> $GITHUB_STEP_SUMMARY
         echo "| Bundler Version | $BUNDLER_VERSION |" >> $GITHUB_STEP_SUMMARY
         echo "| rv Version | ${{ steps.rv-version.outputs.version }} |" >> $GITHUB_STEP_SUMMARY
-        echo "| Gem Manager | rv clean-install |" >> $GITHUB_STEP_SUMMARY
+        echo "| Gem Manager | $GEM_MANAGER |" >> $GITHUB_STEP_SUMMARY
         echo "| Platform | ${{ steps.platform.outputs.platform }} |" >> $GITHUB_STEP_SUMMARY
         echo "| Gem Cache Hit | ${{ steps.cache-bundler-gems.outputs.cache-hit }} |" >> $GITHUB_STEP_SUMMARY
         echo "| Gem Install Time | ${ELAPSED}s |" >> $GITHUB_STEP_SUMMARY
