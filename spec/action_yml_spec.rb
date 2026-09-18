@@ -32,6 +32,8 @@ RSpec.describe 'action.yml' do
     expect(install_step.fetch('if')).to eq("steps.setup-plan.outputs.fast-bundler-install == 'true'")
     expect(install_step.fetch('run')).to include('RV_CI_ARGS=(--gemfile "$GEMFILE")')
     expect(install_step.fetch('run')).to include('"$RV_BIN" ci "${RV_CI_ARGS[@]}"')
+    expect(install_step.fetch('run')).to include('rv clean-install failed; falling back to bundle install')
+    expect(install_step.fetch('run')).to include('bundle install --gemfile "$GEMFILE" --jobs 4')
   end
 
   it 'retries dependency resolution and rv gem installation without changing sources' do
@@ -241,5 +243,8 @@ RSpec.describe 'action.yml' do
     setup_script = setup_step.fetch('run')
     expect(setup_script).to include('cygpath -m "$ACTUAL_GEM_HOME"')
     expect(setup_script).to include('cygpath -w "$RUBY_BIN_DIR"')
+    expect(setup_script).to include('RIDK_CMD="$RUBY_BIN_DIR/ridk.cmd"')
+    expect(setup_script).to include('Enabling MSYS2 DevKit via ridk...')
+    expect(setup_script).to include('mklink /J')
   end
 end

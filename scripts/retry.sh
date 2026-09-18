@@ -11,7 +11,7 @@
 #
 # "Could not find gem ..." is deliberately absent: a just-published gem can be
 # missing from the index for a few minutes, and retrying is the fix.
-SETUP_RUBY_FLASH_DETERMINISTIC_FAILURES='native extension build failure => Gem::Ext::BuildError|Failed to build gem native extension
+SETUP_RUBY_FLASH_DETERMINISTIC_FAILURES='native extension build failure => Gem::Ext::BuildError|Failed to build gem native extension|Could not compile gem .* extension|CiError\(CompileFailures
 dependency resolution conflict => could not find compatible versions|version solving has failed
 incompatible Ruby version => requires ruby version|conflicting requirements for the ruby version
 Gemfile or gemspec error => there was an error parsing .?gemfile|gemfile syntax error|there was an error while loading .*\.gemspec
