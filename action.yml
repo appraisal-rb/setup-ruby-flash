@@ -1386,10 +1386,10 @@ runs:
         fi
 
         if [ -f "$LOCKFILE" ]; then
-          CACHE_HASH=$(sha256sum "$LOCKFILE" | awk '{print $1}' | cut -c1-12)
+          CACHE_HASH=$( (command -v sha256sum >/dev/null && sha256sum "$LOCKFILE" || shasum -a 256 "$LOCKFILE") | awk '{print $1}' | cut -c1-12)
           echo "Using lockfile for cache key: $LOCKFILE (hash: $CACHE_HASH)"
         elif [ -f "$GEMFILE" ]; then
-          CACHE_HASH=$(sha256sum "$GEMFILE" | awk '{print $1}' | cut -c1-12)
+          CACHE_HASH=$( (command -v sha256sum >/dev/null && sha256sum "$GEMFILE" || shasum -a 256 "$GEMFILE") | awk '{print $1}' | cut -c1-12)
           echo "No lockfile found; using Gemfile for cache key: $GEMFILE (hash: $CACHE_HASH)"
         else
           CACHE_HASH="no-gemfile"
@@ -1595,7 +1595,7 @@ runs:
         done < <(find gemfiles -type f \( -name '*.gemfile' -o -name '*.gemfile.lock' \) 2>/dev/null | sort)
 
         if [ "${#HASH_INPUTS[@]}" -gt 0 ]; then
-          CACHE_HASH=$(sha256sum "${HASH_INPUTS[@]}" | sha256sum | awk '{print $1}' | cut -c1-12)
+          CACHE_HASH=$( (command -v sha256sum >/dev/null && sha256sum "${HASH_INPUTS[@]}" || shasum -a 256 "${HASH_INPUTS[@]}") | (command -v sha256sum >/dev/null && sha256sum || shasum -a 256) | awk '{print $1}' | cut -c1-12)
         else
           CACHE_HASH="no-appraisal-files"
         fi
@@ -1943,11 +1943,11 @@ runs:
         
         if [ -f "$LOCKFILE" ]; then
           # Lockfile exists - use its hash for cache key
-          CACHE_HASH=$(sha256sum "$LOCKFILE" | awk '{print $1}' | cut -c1-12)
+          CACHE_HASH=$( (command -v sha256sum >/dev/null && sha256sum "$LOCKFILE" || shasum -a 256 "$LOCKFILE") | awk '{print $1}' | cut -c1-12)
           echo "Using lockfile: $LOCKFILE (hash: $CACHE_HASH)"
         elif [ -f "$GEMFILE" ]; then
           # No lockfile yet - use Gemfile hash to ensure unique cache per Gemfile
-          CACHE_HASH=$(sha256sum "$GEMFILE" | awk '{print $1}' | cut -c1-12)
+          CACHE_HASH=$( (command -v sha256sum >/dev/null && sha256sum "$GEMFILE" || shasum -a 256 "$GEMFILE") | awk '{print $1}' | cut -c1-12)
           echo "No lockfile found, using Gemfile: $GEMFILE (hash: $CACHE_HASH)"
         else
           # Neither exists - use generic identifier
