@@ -129,6 +129,8 @@
   - Previously surfaced as `Bundler::SolveFailure: ... could not be found in locally installed gems`; in one reproduction of the stale-cache path, `rv ci` hung indefinitely instead
   - An exact cache hit still skips `--force`, so the fast path stays fast
 
+- The rv fast-install path now validates the resulting bundle with Bundler and falls back to bundle install when native extensions are missing.
+
 ### Notes
 
 - Building from source is intended for testing only; production CI should use release versions

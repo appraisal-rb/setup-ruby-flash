@@ -1478,8 +1478,9 @@ runs:
           RV_CI_ARGS+=(--force)
         fi
         GEM_MANAGER="rv clean-install"
-        if ! setup_ruby_flash_retry "rv clean-install" "$MAX_RETRIES" "$RV_BIN" ci "${RV_CI_ARGS[@]}"; then
-          echo "::warning::rv clean-install failed; falling back to bundle install"
+        if ! setup_ruby_flash_retry "rv clean-install" "$MAX_RETRIES" "$RV_BIN" ci "${RV_CI_ARGS[@]}" || \
+          ! bundle check --gemfile "$GEMFILE"; then
+          echo "::warning::rv clean-install did not produce a bundle accepted by Bundler; falling back to bundle install"
           GEM_MANAGER="bundle install (rv clean-install fallback)"
           bundle config set --local path vendor/bundle
           setup_ruby_flash_retry "bundle install for $GEMFILE" "$MAX_RETRIES" bundle install --gemfile "$GEMFILE" --jobs 4

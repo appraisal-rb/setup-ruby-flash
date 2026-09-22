@@ -32,7 +32,8 @@ RSpec.describe 'action.yml' do
     expect(install_step.fetch('if')).to eq("steps.setup-plan.outputs.fast-bundler-install == 'true'")
     expect(install_step.fetch('run')).to include('RV_CI_ARGS=(--gemfile "$GEMFILE")')
     expect(install_step.fetch('run')).to include('"$RV_BIN" ci "${RV_CI_ARGS[@]}"')
-    expect(install_step.fetch('run')).to include('rv clean-install failed; falling back to bundle install')
+    expect(install_step.fetch('run')).to include('bundle check --gemfile "$GEMFILE"')
+    expect(install_step.fetch('run')).to include('rv clean-install did not produce a bundle accepted by Bundler; falling back to bundle install')
     expect(install_step.fetch('run')).to include('bundle install --gemfile "$GEMFILE" --jobs 4')
   end
 
