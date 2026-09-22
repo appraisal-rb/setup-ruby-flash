@@ -12,7 +12,7 @@ GEM
     diff-lcs (1.6.2)
     diffy (3.4.4)
     emoji_regex (15.0.0)
-    json (2.18.0)
+    json (2.19.9)
     kettle-dev (3.0.6)
       emoji_regex (>= 15.0)
       kettle-gha-pins (~> 0.3, >= 0.3.11)
@@ -184,7 +184,7 @@ CHECKSUMS
   diff-lcs (1.6.2) sha256=9ae0d2cba7d4df3075fe8cd8602a8604993efc0dfa934cff568969efb1909962
   diffy (3.4.4) sha256=79384ab5ca82d0e115b2771f0961e27c164c456074bd2ec46b637ebf7b6e47e3
   emoji_regex (15.0.0) sha256=a508b2c0bee561169564e0aec96085020c900520d335e5533fd8e78e59493829
-  json (2.18.0) sha256=b10506aee4183f5cf49e0efc48073d7b75843ce3782c68dbeb763351c08fd505
+  json (2.19.9) sha256=9b9025b7cdddafa38d316eca0b2358488e42d417045c1b90d216a9fefe46b79a
   kettle-dev (3.0.6) sha256=0b570b42377cb4b7baa27cfc055e6a3996e1b7cb259c7fc018ff77b1feed005b
   kettle-gha-pins (0.3.11) sha256=f0239d2f91df5093a0d961bffa1f1b8308e63e3d0e5ff6fbf0cc567c479251fa
   kettle-ndjson (0.1.11) sha256=f09d3d926b0734a1b257109247b919725489b04235a871372e223f46b826a1ca
