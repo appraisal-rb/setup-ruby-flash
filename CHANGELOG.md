@@ -131,6 +131,8 @@
 
 - The rv fast-install path now validates the resulting bundle with Bundler and falls back to bundle install when native extensions are missing.
 
+- Windows native extension recovery now preserves each Makefile target path instead of flattening compiled libraries into the gem's lib root.
+
 ### Notes
 
 - Building from source is intended for testing only; production CI should use release versions
