@@ -3,6 +3,19 @@ set -euo pipefail
 
 bundle_path=${1:?Usage: recover-native-extensions.sh BUNDLE_PATH}
 
+makefile_value() {
+  makefile=$1
+  key=$2
+
+  while IFS= read -r line; do
+    case "$line" in
+      "$key = "*) printf '%s' "${line#"$key = "}"; return 0 ;;
+    esac
+  done < "$makefile"
+
+  return 1
+}
+
 for gem_dir in "$bundle_path"/ruby/*/gems/*; do
   [ -d "$gem_dir" ] || continue
   gem_name_ver="$(basename "$gem_dir")"
@@ -12,15 +25,26 @@ for gem_dir in "$bundle_path"/ruby/*/gems/*; do
 
   while IFS= read -r so_file; do
     [ -f "$so_file" ] || continue
-    makefile="$(dirname "$so_file")/Makefile"
-    [ -f "$makefile" ] || continue
+    so_name="$(basename "$so_file")"
+    target_name="${so_name%.*}"
+    makefile=""
+    while IFS= read -r candidate; do
+      candidate_target="$(makefile_value "$candidate" TARGET || true)"
+      if [ "$candidate_target" = "$target_name" ]; then
+        makefile="$candidate"
+        break
+      fi
+    done < <(find "$ext_src" -type f -name Makefile 2>/dev/null)
+    if [ -z "$makefile" ]; then
+      echo "Skipping native extension without a matching Makefile TARGET: $so_file" >&2
+      continue
+    fi
 
-    target_prefix=""
-    while IFS= read -r line; do
-      case "$line" in
-        "target_prefix = "*) target_prefix="${line#target_prefix = }"; break ;;
-      esac
-    done < "$makefile"
+    target_prefix="$(makefile_value "$makefile" target_prefix || true)"
+    if [ -z "$target_prefix" ]; then
+      echo "Skipping native extension without a target_prefix: $makefile" >&2
+      continue
+    fi
     target_prefix="${target_prefix#/}"
     case "$target_prefix" in
       ""|..|../*|*/../*)
@@ -29,7 +53,6 @@ for gem_dir in "$bundle_path"/ruby/*/gems/*; do
         ;;
     esac
 
-    so_name="$(basename "$so_file")"
     target_lib_dir="$lib_dir/$target_prefix"
     mkdir -p "$target_lib_dir"
     if [ ! -f "$target_lib_dir/$so_name" ]; then
