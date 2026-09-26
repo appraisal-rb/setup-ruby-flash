@@ -12,7 +12,7 @@ RSpec.describe 'Windows native extension recovery' do
       gem_dir = File.join(bundle_path, 'ruby', '4.0.0', 'gems', 'json-3.0.2')
       extension_dir = File.join(gem_dir, 'ext', 'json', 'ext', 'generator')
       FileUtils.mkdir_p(extension_dir)
-      File.write(File.join(extension_dir, 'Makefile'), "target_prefix = /json/ext\nTARGET = generator\n")
+      File.write(File.join(extension_dir, 'Makefile'), "target_prefix = /json/ext\r\nTARGET = generator\r\n")
       File.write(File.join(extension_dir, 'generator.so'), 'native extension')
 
       script = File.expand_path('../scripts/recover-native-extensions.sh', __dir__)

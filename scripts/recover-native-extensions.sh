@@ -8,6 +8,7 @@ makefile_value() {
   key=$2
 
   while IFS= read -r line; do
+    line=${line%$'\r'}
     case "$line" in
       "$key = "*) printf '%s' "${line#"$key = "}"; return 0 ;;
     esac
