@@ -137,6 +137,8 @@
 
 - Windows native extension recovery now handles CRLF-generated Makefiles when matching compiled binaries to their TARGET.
 
+- Windows native extension recovery now restores rv-staged binaries when the build Makefile is unavailable and supports root-level extension targets.
+
 ### Notes
 
 - Building from source is intended for testing only; production CI should use release versions
