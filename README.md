@@ -34,6 +34,7 @@ A _fast_ GitHub Action for fast Ruby environment setup using [rv](https://github
 - 📦 **Gem installation via `rv clean-install`** (Bundler-compatible, no separate gem manager to install)
 - 💾 **Intelligent caching** for both Ruby and gems
 - 🐧 🍏 🪟 **Linux, macOS & Windows support** (x86_64 and ARM64)
+- 🦀 **Windows RubyInstaller native extensions** use the Rust GNU target required by Ruby's MinGW ABI
 - ☕️ **Gitea [Actions](https://docs.gitea.com/usage/actions/overview) support**
 - 🦊 **Forgejo [Actions](https://forgejo.org/docs/next/admin/actions/) support**
 - 🧊 **Codeberg [Actions](https://docs.codeberg.org/ci/actions/) support**

@@ -1145,6 +1145,27 @@ runs:
         ruby --version
         gem --version
 
+    - name: Configure Rust target for RubyInstaller
+      if: runner.os == 'Windows'
+      shell: bash
+      run: |
+        RUBY_TARGET_OS=$(ruby -rrbconfig -e 'print RbConfig::CONFIG.fetch("target_os")')
+        RUBY_HOST_CPU=$(ruby -rrbconfig -e 'print RbConfig::CONFIG.fetch("host_cpu")')
+
+        # RubyInstaller uses the GNU ABI; rb-sys extensions must compile for
+        # that ABI instead of Cargo's default Windows MSVC target.
+        case "$RUBY_TARGET_OS:$RUBY_HOST_CPU" in
+          mingw32:x86_64|mingw32:x64|mingw32:amd64)
+            RUST_TARGET="x86_64-pc-windows-gnu"
+            rustup target add "$RUST_TARGET"
+            echo "RUST_TARGET=$RUST_TARGET" >> "$GITHUB_ENV"
+            echo "Configured Rust target $RUST_TARGET for RubyInstaller"
+            ;;
+          *)
+            echo "No RubyInstaller Rust target override needed (target_os=$RUBY_TARGET_OS, host_cpu=$RUBY_HOST_CPU)"
+            ;;
+        esac
+
     - name: Configure RubyGems
       if: steps.check-support.outputs.use-fallback != 'true' && inputs.rubygems != 'default'
       id: configure-rubygems

@@ -139,6 +139,8 @@
 
 - Windows native extension recovery now restores rv-staged binaries when the build Makefile is unavailable and supports root-level extension targets.
 
+- Windows RubyInstaller runs configure rb-sys builds for the matching Rust GNU ABI instead of Cargo's default MSVC target.
+
 ### Notes
 
 - Building from source is intended for testing only; production CI should use release versions

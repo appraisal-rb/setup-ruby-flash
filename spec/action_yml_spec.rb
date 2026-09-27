@@ -257,4 +257,20 @@ RSpec.describe 'action.yml' do
     expect(setup_script).to include('Enabling MSYS2 DevKit via ridk...')
     expect(setup_script).to include('mklink /J')
   end
+
+  it 'selects the Rust GNU target for RubyInstaller before installing gems' do
+    rust_target_step = steps.fetch(step_names.index('Configure Rust target for RubyInstaller'))
+    rust_target_script = rust_target_step.fetch('run')
+
+    expect(rust_target_step.fetch('if')).to eq("runner.os == 'Windows'")
+    expect(rust_target_script).to include('RbConfig::CONFIG.fetch("target_os")')
+    expect(rust_target_script).to include('RbConfig::CONFIG.fetch("host_cpu")')
+    expect(rust_target_script).to include('mingw32:x86_64|mingw32:x64|mingw32:amd64')
+    expect(rust_target_script).to include('RUST_TARGET="x86_64-pc-windows-gnu"')
+    expect(rust_target_script).to include('rustup target add "$RUST_TARGET"')
+    expect(rust_target_script).to include('echo "RUST_TARGET=$RUST_TARGET" >> "$GITHUB_ENV"')
+    target_step_index = step_names.index('Configure Rust target for RubyInstaller')
+    expect(target_step_index).to be < step_names.index('Install gems with rv')
+    expect(target_step_index).to be < step_names.index('Install gems with Bundler (compatibility path)')
+  end
 end
