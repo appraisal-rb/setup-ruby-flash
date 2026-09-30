@@ -134,6 +134,10 @@ jobs:
           source 'https://gem.coop'
           gem 'rake'
           gem 'bigdecimal', '4.1.3'
+          if Gem.win_platform?
+            gem 'psych', '~> 5.5'
+            gem 'openssl', '~> 4.0'
+          end
           EOF
 
       - name: Run setup-ruby-flash with bundler-cache
@@ -158,6 +162,10 @@ jobs:
           bundle exec rake -T
           echo "==> Test native extension:"
           bundle exec ruby -rbigdecimal -e 'puts BigDecimal("1.23")'
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            echo "==> Test Psych and OpenSSL native extensions:"
+            bundle exec ruby -e 'require "psych"; require "openssl"; puts Psych::VERSION; puts OpenSSL::VERSION'
+          fi
 
   # Test the action with ore gem installation (Compiled Extensions)
   test-action-with-ore-compiled:

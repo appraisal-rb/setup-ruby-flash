@@ -1145,6 +1145,21 @@ runs:
         ruby --version
         gem --version
 
+    - name: Install MSYS2 headers for native gems
+      if: runner.os == 'Windows' && steps.check-support.outputs.use-fallback != 'true'
+      shell: bash
+      run: |
+        if ! command -v pacman >/dev/null 2>&1; then
+          echo "::error::MSYS2 pacman is unavailable after configuring the RubyInstaller DevKit"
+          exit 1
+        fi
+
+        MINGW_PACKAGE_PREFIX="${MINGW_PACKAGE_PREFIX:-mingw-w64-ucrt-x86_64}"
+        echo "Installing native gem headers for $MINGW_PACKAGE_PREFIX"
+        pacman -S --needed --noconfirm \
+          "${MINGW_PACKAGE_PREFIX}-libyaml" \
+          "${MINGW_PACKAGE_PREFIX}-openssl"
+
     - name: Configure Rust target for RubyInstaller
       if: runner.os == 'Windows'
       shell: bash

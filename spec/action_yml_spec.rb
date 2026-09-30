@@ -46,6 +46,14 @@ RSpec.describe 'action.yml' do
     expect(script).to include('scripts/recover-native-extensions.sh')
   end
 
+  it 'installs MSYS2 headers needed by Windows Psych and OpenSSL extensions' do
+    step = steps.fetch(step_names.index('Install MSYS2 headers for native gems'))
+
+    expect(step.fetch('if')).to eq("runner.os == 'Windows' && steps.check-support.outputs.use-fallback != 'true'")
+    expect(step.fetch('run')).to include('"${MINGW_PACKAGE_PREFIX}-libyaml"')
+    expect(step.fetch('run')).to include('"${MINGW_PACKAGE_PREFIX}-openssl"')
+  end
+
   it 'retries dependency resolution and rv gem installation without changing sources' do
     install_step = steps.fetch(step_names.index('Install gems with rv'))
     script = install_step.fetch('run')

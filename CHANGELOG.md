@@ -141,6 +141,8 @@
 
 - Windows RubyInstaller runs configure rb-sys builds for the matching Rust GNU ABI instead of Cargo's default MSVC target.
 
+- Windows setup now installs the MSYS2 libyaml and OpenSSL headers required to build Psych and OpenSSL native extensions.
+
 ### Notes
 
 - Building from source is intended for testing only; production CI should use release versions
