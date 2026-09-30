@@ -145,6 +145,8 @@
 
 - Windows native gem builds now pass the installed MSYS2 libyaml and OpenSSL prefixes to Bundler.
 
+- Windows native OpenSSL builds now receive Windows-form MSYS2 prefixes and the matching CA certificate bundle, allowing Bundler installs to compile OpenSSL and verify HTTPS sources.
+
 ### Notes
 
 - Building from source is intended for testing only; production CI should use release versions
