@@ -143,6 +143,8 @@
 
 - Windows setup now installs the MSYS2 libyaml and OpenSSL headers required to build Psych and OpenSSL native extensions.
 
+- Windows native gem builds now pass the installed MSYS2 libyaml and OpenSSL prefixes to Bundler.
+
 ### Notes
 
 - Building from source is intended for testing only; production CI should use release versions

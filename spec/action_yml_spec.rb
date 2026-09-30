@@ -54,6 +54,10 @@ RSpec.describe 'action.yml' do
     expect(step.fetch('run')).to include('"$MSYS2_ROOT_POSIX/usr/bin/pacman.exe"')
     expect(step.fetch('run')).to include('"${MINGW_PACKAGE_PREFIX}-libyaml"')
     expect(step.fetch('run')).to include('"${MINGW_PACKAGE_PREFIX}-openssl"')
+    expect(step.fetch('run')).to include('*ucrt*) TOOLCHAIN="ucrt64" ;;')
+    expect(step.fetch('run')).to include('NATIVE_PREFIX="$MSYS2_ROOT_POSIX/$TOOLCHAIN"')
+    expect(step.fetch('run')).to include('BUNDLE_BUILD__PSYCH=--with-libyaml-dir=$NATIVE_PREFIX')
+    expect(step.fetch('run')).to include('BUNDLE_BUILD__OPENSSL=--with-openssl-dir=$NATIVE_PREFIX')
   end
 
   it 'retries dependency resolution and rv gem installation without changing sources' do

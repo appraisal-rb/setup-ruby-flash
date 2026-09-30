@@ -1159,10 +1159,20 @@ runs:
         fi
 
         MINGW_PACKAGE_PREFIX="${MINGW_PACKAGE_PREFIX:-mingw-w64-ucrt-x86_64}"
+        case "$MINGW_PACKAGE_PREFIX" in
+          *ucrt*) TOOLCHAIN="ucrt64" ;;
+          *) TOOLCHAIN="mingw64" ;;
+        esac
+        NATIVE_PREFIX="$MSYS2_ROOT_POSIX/$TOOLCHAIN"
         echo "Installing native gem headers for $MINGW_PACKAGE_PREFIX"
         "$PACMAN" -S --needed --noconfirm \
           "${MINGW_PACKAGE_PREFIX}-libyaml" \
           "${MINGW_PACKAGE_PREFIX}-openssl"
+
+        # Bundler's native extension builders need explicit prefixes; installing
+        # MSYS2 packages alone does not make their headers visible to extconf.rb.
+        echo "BUNDLE_BUILD__PSYCH=--with-libyaml-dir=$NATIVE_PREFIX" >> "$GITHUB_ENV"
+        echo "BUNDLE_BUILD__OPENSSL=--with-openssl-dir=$NATIVE_PREFIX" >> "$GITHUB_ENV"
 
     - name: Configure Rust target for RubyInstaller
       if: runner.os == 'Windows'
