@@ -50,6 +50,8 @@ RSpec.describe 'action.yml' do
     step = steps.fetch(step_names.index('Install MSYS2 headers for native gems'))
 
     expect(step.fetch('if')).to eq("runner.os == 'Windows' && steps.check-support.outputs.use-fallback != 'true'")
+    expect(step.fetch('run')).to include('MSYS2_ROOT="${RI_DEVKIT:-C:/msys64}"')
+    expect(step.fetch('run')).to include('"$MSYS2_ROOT_POSIX/usr/bin/pacman.exe"')
     expect(step.fetch('run')).to include('"${MINGW_PACKAGE_PREFIX}-libyaml"')
     expect(step.fetch('run')).to include('"${MINGW_PACKAGE_PREFIX}-openssl"')
   end

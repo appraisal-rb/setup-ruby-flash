@@ -1149,14 +1149,18 @@ runs:
       if: runner.os == 'Windows' && steps.check-support.outputs.use-fallback != 'true'
       shell: bash
       run: |
-        if ! command -v pacman >/dev/null 2>&1; then
-          echo "::error::MSYS2 pacman is unavailable after configuring the RubyInstaller DevKit"
+        MSYS2_ROOT="${RI_DEVKIT:-C:/msys64}"
+        MSYS2_ROOT_POSIX="$(cygpath -u "$MSYS2_ROOT")"
+        PACMAN="$MSYS2_ROOT_POSIX/usr/bin/pacman.exe"
+
+        if [ ! -f "$PACMAN" ]; then
+          echo "::error::MSYS2 pacman was not found at $PACMAN"
           exit 1
         fi
 
         MINGW_PACKAGE_PREFIX="${MINGW_PACKAGE_PREFIX:-mingw-w64-ucrt-x86_64}"
         echo "Installing native gem headers for $MINGW_PACKAGE_PREFIX"
-        pacman -S --needed --noconfirm \
+        "$PACMAN" -S --needed --noconfirm \
           "${MINGW_PACKAGE_PREFIX}-libyaml" \
           "${MINGW_PACKAGE_PREFIX}-openssl"
 
