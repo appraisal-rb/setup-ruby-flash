@@ -518,7 +518,7 @@ runs:
 
     - name: Setup Ruby with ruby/setup-ruby (compatibility path)
       if: steps.check-support.outputs.use-fallback == 'true'
-      uses: ruby/setup-ruby@v1
+      uses: ruby/setup-ruby@78c62f2208e480ce3d5ae4dfd9b9e181acf48b63 # v1.344.0
       with:
         ruby-version: ${{ inputs.ruby-version }}
         rubygems: ${{ inputs.rubygems }}
@@ -637,7 +637,7 @@ runs:
     - name: Cache rv binary
       if: steps.check-support.outputs.use-fallback != 'true'
       id: cache-rv
-      uses: actions/cache@v4
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: |
           ~/.local/bin/rv
@@ -647,7 +647,7 @@ runs:
 
     - name: Setup Rust toolchain for rv
       if: steps.check-support.outputs.use-fallback != 'true' && steps.cache-rv.outputs.cache-hit != 'true' && steps.rv-version.outputs.build-from-source == 'true'
-      uses: dtolnay/rust-toolchain@stable
+      uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
 
     - name: Build rv from source
       if: steps.check-support.outputs.use-fallback != 'true' && steps.cache-rv.outputs.cache-hit != 'true' && steps.rv-version.outputs.build-from-source == 'true'
@@ -826,7 +826,7 @@ runs:
     - name: Cache Ruby installation
       if: steps.check-support.outputs.use-fallback != 'true'
       id: cache-ruby
-      uses: actions/cache@v4
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: |
           ~/.local/share/rv/rubies
@@ -1457,7 +1457,7 @@ runs:
     - name: Cache Bundler gems
       if: steps.setup-plan.outputs.fast-bundler-install == 'true'
       id: cache-bundler-gems
-      uses: actions/cache@v4
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ${{ inputs.working-directory }}/vendor/bundle
         key: ${{ steps.bundler-gem-cache-key.outputs.key }}
@@ -1633,7 +1633,7 @@ runs:
 
     - name: Cache appraisal gems
       if: steps.setup-plan.outputs.cache-appraisal == 'true'
-      uses: actions/cache@v4
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ${{ inputs.working-directory }}/vendor/appraisal-bundle
         key: ${{ steps.appraisal-gem-cache-key.outputs.key }}
@@ -1801,14 +1801,14 @@ runs:
     - name: Cache ore binary
       if: steps.check-support.outputs.use-fallback != 'true' && steps.should-install-ore.outputs.install-ore == 'true'
       id: cache-ore
-      uses: actions/cache@v4
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ~/.local/bin/ore
         key: setup-ruby-flash-ore-${{ steps.platform.outputs.platform }}-ruby-${{ steps.detect-ruby.outputs.version }}-${{ steps.ore-version.outputs.version }}-${{ steps.ore-version.outputs.build-from-source }}-gfgo-${{ steps.ore-version.outputs.gfgo-version }}
 
     - name: Setup Go toolchain for ore
       if: steps.check-support.outputs.use-fallback != 'true' && steps.should-install-ore.outputs.install-ore == 'true' && steps.cache-ore.outputs.cache-hit != 'true' && steps.ore-version.outputs.build-from-source == 'true'
-      uses: actions/setup-go@v5
+      uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
       with:
         go-version: "stable"
 
@@ -1992,7 +1992,7 @@ runs:
     - name: Cache gems
       if: steps.check-support.outputs.use-fallback != 'true' && steps.should-install-ore.outputs.install-ore == 'true'
       id: cache-gems
-      uses: actions/cache@v4
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: |
           ${{ steps.setup.outputs.ruby-prefix }}/lib/ruby/gems
