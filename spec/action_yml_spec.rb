@@ -100,7 +100,7 @@ RSpec.describe 'action.yml' do
   it 'keeps unsupported Ruby versions on the ruby/setup-ruby compatibility path' do
     fallback_step = steps.fetch(step_names.index('Setup Ruby with ruby/setup-ruby (compatibility path)'))
 
-    expect(fallback_step.fetch('uses')).to eq('ruby/setup-ruby@v1')
+    expect(fallback_step.fetch('uses')).to eq('ruby/setup-ruby@78c62f2208e480ce3d5ae4dfd9b9e181acf48b63')
     expect(fallback_step.fetch('if')).to eq("steps.check-support.outputs.use-fallback == 'true'")
     expect(fallback_step.dig('with', 'bundler-cache')).to eq(ruby_setup_cache_expression)
   end

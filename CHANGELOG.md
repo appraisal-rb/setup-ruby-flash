@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Security
+
+- Pin every action used by `action.yml` and the CI workflows to a full-length commit SHA at its latest release, so consumers whose policy requires SHA-pinned actions (including nested ones) can use this action: `actions/checkout` v7.0.1, `actions/cache` v6.1.0, `actions/upload-artifact` v7.0.2, `actions/setup-go` v7.1.0, `ruby/setup-ruby` v1.344.0, and `dtolnay/rust-toolchain` (stable branch).
+
 ### Added
 
 - **Windows Support**: setup-ruby-flash now supports Windows runners (`windows-latest`, Windows Server 2022+) with full feature parity to Linux and macOS
